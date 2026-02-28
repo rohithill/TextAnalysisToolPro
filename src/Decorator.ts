@@ -46,7 +46,7 @@ export class Decorator {
         filters.forEach(filter => {
             if (!this.decorationTypes.has(filter.id)) {
                 this.decorationTypes.set(filter.id, vscode.window.createTextEditorDecorationType({
-                    backgroundColor: filter.backgroundColor || 'rgba(255, 255, 0, 0.3)', // Default highlight
+                    backgroundColor: filter.backgroundColor,
                     color: filter.foregroundColor
                 }));
             }

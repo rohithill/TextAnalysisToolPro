@@ -46,6 +46,11 @@
                 "title": "Toggle Filter Enable"
             },
             {
+                "command": "textanalysistoolpro.editFilter",
+                "title": "Edit Filter",
+                "icon": "$(edit)"
+            },
+            {
                 "command": "textanalysistoolpro.showFiltered",
                 "title": "Show Only Filtered Lines",
                 "icon": "$(eye)"
@@ -99,6 +104,10 @@
                 },
                 {
                     "command": "textanalysistoolpro.removeFilter",
+                    "when": "view == filtersView"
+                },
+                {
+                    "command": "textanalysistoolpro.editFilter",
                     "when": "view == filtersView"
                 }
             ]
