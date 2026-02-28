@@ -2,8 +2,8 @@ import * as vscode from 'vscode';
 import { FilterManager } from './managers/FilterManager';
 import { FiltersTreeDataProvider } from './providers/FiltersTreeDataProvider';
 import { Decorator } from './Decorator';
-import { FilteredDocumentProvider } from './providers/FilteredDocumentProvider';
 import { createFilter } from './models/Filter';
+import { FilterWizard } from './ui/FilterWizard';
 
 let filterManager: FilterManager;
 
@@ -16,28 +16,25 @@ export function activate(context: vscode.ExtensionContext) {
     const treeDataProvider = new FiltersTreeDataProvider(filterManager);
     vscode.window.registerTreeDataProvider('filtersView', treeDataProvider);
 
-    const filteredDocProvider = new FilteredDocumentProvider(filterManager);
-    context.subscriptions.push(
-        vscode.workspace.registerTextDocumentContentProvider(FilteredDocumentProvider.scheme, filteredDocProvider)
-    );
+    const filteredChannel = vscode.window.createOutputChannel("TextAnalysisToolPro Filtered");
 
     // Initialize Decorator
     new Decorator(filterManager);
 
     // Register Commands
-    context.subscriptions.push(vscode.commands.registerCommand('textanalysistoolpro.addFilter', async () => {
-        const result = await vscode.window.showInputBox({
-            prompt: 'Enter text to filter (prefix with "regex:" for regular expressions)',
-            placeHolder: 'e.g., Error, Exception, regex:^\\d{4}'
-        });
-        if (result) {
-            const isRegex = result.startsWith('regex:');
-            const text = isRegex ? result.substring(6) : result;
-            filterManager.addFilter(createFilter(text, isRegex));
+    context.subscriptions.push(vscode.commands.registerCommand('textanalysistoolpro.addFilter', () => {
+        FilterWizard.run(filterManager);
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('textanalysistoolpro.editFilter', (node: any) => {
+        if (node && node.filter) {
+            FilterWizard.run(filterManager, node.filter);
+        } else {
+            vscode.window.showInformationMessage('Use the sidebar to edit specific filters.');
         }
     }));
 
-    context.subscriptions.push(vscode.commands.registerCommand('textanalysistoolpro.removeFilter', (node) => {
+    context.subscriptions.push(vscode.commands.registerCommand('textanalysistoolpro.removeFilter', (node: any) => {
         if (node && node.filter) {
             filterManager.removeFilter(node.filter.id);
         } else {
@@ -46,26 +43,69 @@ export function activate(context: vscode.ExtensionContext) {
         }
     }));
 
-    context.subscriptions.push(vscode.commands.registerCommand('textanalysistoolpro.toggleFilter', (node) => {
+    context.subscriptions.push(vscode.commands.registerCommand('textanalysistoolpro.toggleFilter', (node: any) => {
         if (node && node.filter) {
             filterManager.toggleFilterEnable(node.filter.id);
         }
     }));
 
     context.subscriptions.push(vscode.commands.registerCommand('textanalysistoolpro.showFiltered', async () => {
-        const uri = vscode.Uri.parse(`${FilteredDocumentProvider.scheme}:FilteredView`);
+        const activeEditors = vscode.window.visibleTextEditors;
+        let sourceDoc = activeEditors.find((e: any) => e.document.uri.scheme !== 'output')?.document;
 
-        for (const tabGroup of vscode.window.tabGroups.all) {
-            for (const tab of tabGroup.tabs) {
-                if (tab.input instanceof vscode.TabInputText && tab.input.uri.toString() === uri.toString()) {
-                    await vscode.window.tabGroups.close(tab);
-                    return;
+        if (!sourceDoc) {
+            vscode.window.showInformationMessage("No valid text document open to filter.");
+            return;
+        }
+
+        const filters = filterManager.getFilters().filter((f: any) => f.isEnabled);
+        if (filters.length === 0) {
+            vscode.window.showInformationMessage("No filters active.");
+            return;
+        }
+
+        filteredChannel.clear();
+        filteredChannel.show(true);
+        let count = 0;
+
+        for (let i = 0; i < sourceDoc.lineCount; i++) {
+            const lineData = sourceDoc.lineAt(i);
+            const lineText = lineData.text;
+            let matchInclude = false;
+            let matchExclude = false;
+
+            for (const filter of filters) {
+                let match = false;
+                if (filter.isRegex) {
+                    try {
+                        const regex = new RegExp(filter.text, filter.isMatchCase ? '' : 'i');
+                        match = regex.test(lineText);
+                    } catch (e) { }
+                } else {
+                    if (filter.isMatchCase) {
+                        match = lineText.includes(filter.text);
+                    } else {
+                        match = lineText.toLowerCase().includes(filter.text.toLowerCase());
+                    }
                 }
+
+                if (match) {
+                    if (filter.isExclude) {
+                        matchExclude = true;
+                        break;
+                    } else {
+                        matchInclude = true;
+                    }
+                }
+            }
+
+            if (matchInclude && !matchExclude) {
+                filteredChannel.appendLine(lineText);
+                count++;
             }
         }
 
-        const doc = await vscode.workspace.openTextDocument(uri);
-        await vscode.window.showTextDocument(doc, { preview: false, viewColumn: vscode.ViewColumn.Beside });
+        filteredChannel.appendLine(`\n--- Completed: ${count} line(s) matched ---`);
     }));
 
     context.subscriptions.push(vscode.commands.registerCommand('textanalysistoolpro.importFilters', () => {
