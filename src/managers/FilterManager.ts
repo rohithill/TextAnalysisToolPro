@@ -129,6 +129,14 @@ export class FilterManager {
         this.onDidChangeFiltersEmitter.fire(targetUri);
     }
 
+    public removeAllFilters(uri?: string) {
+        const targetUri = uri || this.activeDocumentUri;
+        if (!targetUri) return;
+
+        this.filtersByUri.set(targetUri, []);
+        this.onDidChangeFiltersEmitter.fire(targetUri);
+    }
+
     public toggleFilterEnable(id: string, uri?: string) {
         const targetUri = uri || this.activeDocumentUri;
         if (!targetUri) return;
@@ -253,11 +261,15 @@ export class FilterManager {
                     const isMatchCase = getAttr('case_sensitive') === 'y';
                     const description = getAttr('description') || '';
 
+                    const config = vscode.workspace.getConfiguration('textanalysistoolpro');
+                    const defaultFore = config.get<string>('defaultForegroundColor', '#ffffff');
+                    const defaultBack = config.get<string>('defaultBackgroundColor', '#44475a');
+
                     const foreColorRaw = getAttr('foreColor');
-                    const foreColor = foreColorRaw ? `#${foreColorRaw}` : '#ffffff';
+                    const foreColor = foreColorRaw ? `#${foreColorRaw}` : defaultFore;
 
                     const backColorRaw = getAttr('backColor');
-                    const backColor = backColorRaw ? `#${backColorRaw}` : '#2d2d30';
+                    const backColor = backColorRaw ? `#${backColorRaw}` : defaultBack;
 
                     loadedFilters.push({
                         id: Math.random().toString(36).substring(2, 9),

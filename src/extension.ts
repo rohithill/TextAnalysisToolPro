@@ -137,8 +137,9 @@ export function activate(context: vscode.ExtensionContext) {
                 if (e.document.uri.toString() === uriString) {
                     clearTimeout(timeout);
                     disposable.dispose();
-                    // A tiny tick to let VS Code finish processing the internal selection clamp that fires when text changes
-                    setTimeout(resolve, 10);
+                    // Wait long enough for VS Code to finish its internal cursor clamping
+                    // that happens after a document content replacement (it clamps to end of change).
+                    setTimeout(resolve, 100);
                 }
             });
         });
@@ -158,20 +159,26 @@ export function activate(context: vscode.ExtensionContext) {
                 newTargetVirtualLine = sourceLineTarget;
             }
 
-            // Move the cursor back
-            const newRange = new vscode.Range(newTargetVirtualLine, 0, newTargetVirtualLine, 0);
-            activeEditor.selection = new vscode.Selection(newRange.start, newRange.end);
-            activeEditor.revealRange(newRange, vscode.TextEditorRevealType.InCenter);
+            const applySelection = () => {
+                const newRange = new vscode.Range(newTargetVirtualLine, 0, newTargetVirtualLine, 0);
+                activeEditor.selection = new vscode.Selection(newRange.start, newRange.end);
+                activeEditor.revealRange(newRange, vscode.TextEditorRevealType.InCenter);
+            };
+
+            // Apply immediately after settling, then once more as insurance against
+            // any remaining internal VS Code cursor adjustments.
+            applySelection();
+            setTimeout(applySelection, 20);
         }
     }));
 
     // Track active virtual documents
     vscode.window.onDidChangeActiveTextEditor(editor => {
-        if (editor) {
-            const uri = editor.document.uri;
-            if (uri.scheme === FilteredDocumentProvider.scheme) {
-                filterManager.setActiveDocumentUri(uri.toString());
-            }
+        if (editor && editor.document.uri.scheme === FilteredDocumentProvider.scheme) {
+            filterManager.setActiveDocumentUri(editor.document.uri.toString());
+        } else {
+            // Focused a regular file (or no editor) — clear so the filter panel shows nothing
+            filterManager.setActiveDocumentUri(undefined);
         }
     });
 
@@ -214,7 +221,7 @@ export function activate(context: vscode.ExtensionContext) {
         });
 
         const doc = await vscode.workspace.openTextDocument(virtualUri);
-        await vscode.window.showTextDocument(doc, { preview: false, viewColumn: vscode.ViewColumn.Beside });
+        await vscode.window.showTextDocument(doc, { preview: false, viewColumn: vscode.ViewColumn.Active });
 
         // Set this as the active document so any new filters apply to it immediately
         filterManager.setActiveDocumentUri(virtualUri.toString());
@@ -276,6 +283,22 @@ export function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(vscode.commands.registerCommand('textanalysistoolpro.importFilters', () => {
         filterManager.importFilters();
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('textanalysistoolpro.removeAllFilters', async () => {
+        const filters = filterManager.getFilters();
+        if (filters.length === 0) {
+            vscode.window.showInformationMessage('No filters to remove.');
+            return;
+        }
+        const confirm = await vscode.window.showWarningMessage(
+            `Remove all ${filters.length} filter(s)?`,
+            { modal: true },
+            'Remove All'
+        );
+        if (confirm === 'Remove All') {
+            filterManager.removeAllFilters();
+        }
     }));
 
     context.subscriptions.push(vscode.commands.registerCommand('textanalysistoolpro.exportFilters', () => {

@@ -104,6 +104,11 @@
                 "command": "textanalysistoolpro.analyzeCurrentFile",
                 "title": "Analyze Current File",
                 "icon": "$(file-code)"
+            },
+            {
+                "command": "textanalysistoolpro.removeAllFilters",
+                "title": "Remove All Filters",
+                "icon": "$(clear-all)"
             }
         ],
         "keybindings": [
@@ -452,6 +457,11 @@
                     "command": "textanalysistoolpro.exportFilters",
                     "when": "view == filtersView",
                     "group": "navigation@4"
+                },
+                {
+                    "command": "textanalysistoolpro.removeAllFilters",
+                    "when": "view == filtersView",
+                    "group": "navigation@5"
                 }
             ],
             "view/item/context": [
