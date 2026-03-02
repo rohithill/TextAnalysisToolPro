@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<TextAnalysisTool.NET version="2016-06-16" showOnlyFilteredLines="True">
+  <filters>
+    <filter enabled="n" excluding="n" description="" foreColor="ff0000" type="matches_text" case_sensitive="n" regex="n" text="&gt;&gt;CM callcmd" />
+    <filter enabled="y" excluding="n" description="" foreColor="008000" type="matches_text" case_sensitive="n" regex="n" text="callevt" />
+    <filter enabled="y" excluding="n" description="" foreColor="ff0000" type="matches_text" case_sensitive="n" regex="n" text="&gt;&gt;CM" />
+    <filter enabled="y" excluding="n" description="" backColor="d3d3d3" type="matches_text" case_sensitive="n" regex="y" text="CM-&gt;IMS|ip rxd" />
+    <filter enabled="y" excluding="n" description="" backColor="7fffd4" type="matches_text" case_sensitive="n" regex="n" text="pref_reason" />
+    <filter enabled="y" excluding="n" description="" foreColor="800080" type="matches_text" case_sensitive="n" regex="y" text="&gt;&gt;&gt;&gt; P|&lt;&lt;&lt;&lt; R" />
+    <filter enabled="n" excluding="n" description="" foreColor="0000ff" type="matches_text" case_sensitive="n" regex="n" text="CM&lt;&lt;" />
+    <filter enabled="n" excluding="n" description="" backColor="ffa07a" type="matches_text" case_sensitive="y" regex="y" text="phcmd" />
+    <filter enabled="n" excluding="n" description="" type="matches_text" case_sensitive="n" regex="n" text="phevt" />
+    <filter enabled="n" excluding="n" description="" backColor="dda0dd" type="matches_text" case_sensitive="n" regex="n" text="send service_req" />
+    <filter enabled="n" excluding="n" description="" type="matches_text" case_sensitive="n" regex="n" text="cm_srv_ind" />
+    <filter enabled="n" excluding="n" description="" backColor="dcdcdc" type="matches_text" case_sensitive="n" regex="n" text="callcmd" />
+    <filter enabled="n" excluding="n" description="" type="matches_text" case_sensitive="n" regex="n" text="pref_reason" />
+    <filter enabled="y" excluding="n" description="" type="matches_text" case_sensitive="n" regex="n" text="&lt;&lt;CM1 ph cmd" />
+    <filter enabled="y" excluding="n" description="" backColor="afeeee" type="matches_text" case_sensitive="n" regex="n" text="sub 0" />
+  </filters>
+</TextAnalysisTool.NET>

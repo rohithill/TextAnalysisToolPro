@@ -7,6 +7,8 @@ export interface Filter {
     isExclude: boolean;
     foregroundColor: string;
     backgroundColor: string;
+    description?: string;
+    letter?: string;
 }
 
 export function createFilter(
@@ -15,7 +17,8 @@ export function createFilter(
     isMatchCase = false,
     isExclude = false,
     foregroundColor = '#ffffff',
-    backgroundColor = '#2d2d30'
+    backgroundColor = '#2d2d30',
+    description = ''
 ): Filter {
     return {
         id: Math.random().toString(36).substring(2, 9),
@@ -25,6 +28,7 @@ export function createFilter(
         isEnabled: true,
         isExclude,
         foregroundColor,
-        backgroundColor
+        backgroundColor,
+        description
     };
 }

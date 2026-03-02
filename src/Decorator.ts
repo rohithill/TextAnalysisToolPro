@@ -29,7 +29,7 @@ export class Decorator {
 
     private clearDecorations() {
         if (!this.activeEditor) { return; }
-        for (const [id, decorationType] of this.decorationTypes) {
+        for (const [/* id */, decorationType] of this.decorationTypes) {
             this.activeEditor.setDecorations(decorationType, []);
             decorationType.dispose();
         }
@@ -39,28 +39,26 @@ export class Decorator {
     private updateDecorations() {
         if (!this.activeEditor) { return; }
 
-        const filters = this.filterManager.getFilters().filter(f => f.isEnabled);
-        const text = this.activeEditor.document.getText();
+        const uriString = this.activeEditor.document.uri.toString();
+        const filters = this.filterManager.getFilters(uriString).filter(f => f.isEnabled);
 
-        // Prepare new decoration types for active filters if not present
-        filters.forEach(filter => {
-            if (!this.decorationTypes.has(filter.id)) {
-                this.decorationTypes.set(filter.id, vscode.window.createTextEditorDecorationType({
-                    backgroundColor: filter.backgroundColor,
-                    color: filter.foregroundColor
-                }));
-            }
-        });
+        // Instead of mapping decorations to individual pre-existing filter types,
+        // we map the EXACT winning foreground/background combination of the line 
+        // to a dynamically created DecorationType so that colors blend perfectly down the hierarchy.
+        const dynamicDecorations: Map<string, vscode.DecorationOptions[]> = new Map();
 
-        // Compute matches per filter
-        const decorationsMap = new Map<string, vscode.DecorationOptions[]>();
-        filters.forEach(f => decorationsMap.set(f.id, []));
+        // Define default fallback strings to check against "missing" xml
+        const defaultFg = '#ffffff';
+        const defaultBg = '#2d2d30';
+        const defaultBgAlt = '#44475a';
 
-        // Iterate line by line to support potentially huge files better than giant matching
-        // In a real optimized scenario, we'd limit this or do it asynchronously
         for (let i = 0; i < this.activeEditor.document.lineCount; i++) {
             const line = this.activeEditor.document.lineAt(i);
             const lineText = line.text;
+
+            let winningFg: string | undefined;
+            let winningBg: string | undefined;
+            let matchInclude = false;
 
             for (const filter of filters) {
                 let match = false;
@@ -79,21 +77,42 @@ export class Decorator {
                     }
                 }
 
-                if (match) {
-                    const range = line.range;
-                    const decoration = { range };
-                    decorationsMap.get(filter.id)?.push(decoration);
-                    // A line might be highlighted by multiple filters. 
-                    // Visual priority will be based on the order of decoration application.
+                if (match && !filter.isExclude) {
+                    if (!matchInclude) {
+                        matchInclude = true;
+                        winningFg = filter.foregroundColor;
+                        winningBg = filter.backgroundColor;
+                    }
                 }
+            }
+
+            if (matchInclude) {
+                // Determine the final colors
+                const finalFg = winningFg || defaultFg;
+                const finalBg = winningBg || defaultBg;
+
+                const key = `${finalFg}_${finalBg}`;
+
+                if (!dynamicDecorations.has(key)) {
+                    dynamicDecorations.set(key, []);
+                    if (!this.decorationTypes.has(key)) {
+                        this.decorationTypes.set(key, vscode.window.createTextEditorDecorationType({
+                            color: finalFg,
+                            backgroundColor: finalBg,
+                            isWholeLine: true
+                        }));
+                    }
+                }
+
+                dynamicDecorations.get(key)!.push({ range: line.range });
             }
         }
 
-        // Apply
-        for (const [id, decorations] of decorationsMap) {
-            const type = this.decorationTypes.get(id);
+        // Apply dynamically constructed decorations
+        for (const [key, options] of dynamicDecorations) {
+            const type = this.decorationTypes.get(key);
             if (type) {
-                this.activeEditor.setDecorations(type, decorations);
+                this.activeEditor.setDecorations(type, options);
             }
         }
     }
