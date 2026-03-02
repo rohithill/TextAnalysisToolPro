@@ -304,6 +304,59 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(vscode.commands.registerCommand('textanalysistoolpro.exportFilters', () => {
         filterManager.exportFilters();
     }));
+
+    // ── Group commands ──────────────────────────────────────────────────────
+
+    context.subscriptions.push(vscode.commands.registerCommand('textanalysistoolpro.createGroup', () => {
+        filterManager.addGroup();
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('textanalysistoolpro.cloneGroup', async () => {
+        const groups = filterManager.getGroups();
+        if (groups.length === 0) { return; }
+        const items = groups.map(g => ({ label: g.name || '(unnamed)', id: g.id }));
+        const picked = await vscode.window.showQuickPick(items, { placeHolder: 'Select group to clone' });
+        if (picked) {
+            filterManager.cloneGroup(picked.id);
+        }
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('textanalysistoolpro.renameGroup', async () => {
+        const groups = filterManager.getGroups();
+        if (groups.length === 0) { return; }
+        const items = groups.map(g => ({ label: g.name || '(unnamed)', id: g.id }));
+        const picked = await vscode.window.showQuickPick(items, { placeHolder: 'Select group to rename' });
+        if (picked) {
+            const newName = await vscode.window.showInputBox({
+                prompt: 'Enter new group name',
+                value: picked.label,
+                validateInput: v => v.trim() ? undefined : 'Name cannot be empty'
+            });
+            if (newName && newName.trim()) {
+                filterManager.renameGroup(picked.id, newName.trim());
+            }
+        }
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('textanalysistoolpro.deleteGroup', async () => {
+        const groups = filterManager.getGroups();
+        if (groups.length <= 1) {
+            vscode.window.showWarningMessage('Cannot delete the last remaining group.');
+            return;
+        }
+        const items = groups.map(g => ({ label: g.name || '(unnamed)', id: g.id }));
+        const picked = await vscode.window.showQuickPick(items, { placeHolder: 'Select group to delete' });
+        if (picked) {
+            const confirm = await vscode.window.showWarningMessage(
+                `Delete group "${picked.label}"? All its filters will be removed.`,
+                { modal: true },
+                'Delete'
+            );
+            if (confirm === 'Delete') {
+                filterManager.removeGroup(picked.id);
+            }
+        }
+    }));
 }
 
 export function deactivate() { }

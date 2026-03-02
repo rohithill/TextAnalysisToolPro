@@ -1,9 +1,12 @@
 import * as vscode from 'vscode';
-import { Filter } from '../models/Filter';
+import { Filter, FilterGroup, createGroup } from '../models/Filter';
 
 export class FilterManager {
-    // Map of Virtual Document URI String -> Array of Filters
-    private filtersByUri: Map<string, Filter[]> = new Map();
+    // Map of Virtual Document URI String -> Array of FilterGroups
+    private groupsByUri: Map<string, FilterGroup[]> = new Map();
+
+    // Map of Virtual Document URI String -> active group id
+    private activeGroupIdByUri: Map<string, string> = new Map();
 
     // Map of Virtual Document URI String -> Boolean (whether filters are activated or toggled off)
     private isActivatedByUri: Map<string, boolean> = new Map();
@@ -23,6 +26,10 @@ export class FilterManager {
 
     constructor() { }
 
+    // -------------------------------------------------------------------------
+    // Line cache helpers (unchanged)
+    // -------------------------------------------------------------------------
+
     public setLineMatchCache(uri: string, matches: number[]) {
         this.lineMatchCache.set(uri, matches);
     }
@@ -39,16 +46,18 @@ export class FilterManager {
         const matches = this.lineMatchCache.get(uri);
         if (!matches) return undefined;
 
-        // Find the first virtual line that corresponds to this source line or the nearest subsequent matched line
         for (let vLine = 0; vLine < matches.length; vLine++) {
             if (matches[vLine] >= sourceLine) {
                 return vLine;
             }
         }
 
-        // If the source line is beyond all matches, return the last virtual line
         return matches.length > 0 ? matches.length - 1 : undefined;
     }
+
+    // -------------------------------------------------------------------------
+    // Active document
+    // -------------------------------------------------------------------------
 
     public setActiveDocumentUri(uri: string | undefined) {
         if (this.activeDocumentUri !== uri) {
@@ -61,16 +70,148 @@ export class FilterManager {
         return this.activeDocumentUri;
     }
 
+    // -------------------------------------------------------------------------
+    // Group helpers
+    // -------------------------------------------------------------------------
+
+    /** Ensures at least one group exists for a URI and returns all groups. */
+    private ensureGroups(uri: string): FilterGroup[] {
+        if (!this.groupsByUri.has(uri)) {
+            const defaultGroup = createGroup('unnamed_1');
+            this.groupsByUri.set(uri, [defaultGroup]);
+            this.activeGroupIdByUri.set(uri, defaultGroup.id);
+        }
+        return this.groupsByUri.get(uri)!;
+    }
+
+    /** Returns the active group for a URI, creating defaults if necessary. */
+    private getActiveGroup(uri: string): FilterGroup {
+        const groups = this.ensureGroups(uri);
+        const activeId = this.activeGroupIdByUri.get(uri);
+        return groups.find(g => g.id === activeId) || groups[0];
+    }
+
+    /** Auto-generates the next available "unnamed_N" name. */
+    private nextAutoName(uri: string): string {
+        const groups = this.groupsByUri.get(uri) || [];
+        const used = new Set(groups.map(g => g.name));
+        let n = 1;
+        while (used.has(`unnamed_${n}`)) {
+            n++;
+        }
+        return `unnamed_${n}`;
+    }
+
+    // -------------------------------------------------------------------------
+    // Public group API
+    // -------------------------------------------------------------------------
+
+    public getGroups(uri?: string): FilterGroup[] {
+        const targetUri = uri || this.activeDocumentUri;
+        if (!targetUri) return [];
+        return this.ensureGroups(targetUri);
+    }
+
+    public getActiveGroupId(uri?: string): string | undefined {
+        const targetUri = uri || this.activeDocumentUri;
+        if (!targetUri) return undefined;
+        this.ensureGroups(targetUri);
+        return this.activeGroupIdByUri.get(targetUri);
+    }
+
+    public addGroup(name?: string, uri?: string): FilterGroup {
+        const targetUri = uri || this.activeDocumentUri;
+        const groups = targetUri ? this.ensureGroups(targetUri) : [];
+        const resolvedName = name || (targetUri ? this.nextAutoName(targetUri) : 'unnamed_1');
+        const newGroup = createGroup(resolvedName);
+        groups.push(newGroup);
+        if (targetUri) {
+            this.groupsByUri.set(targetUri, groups);
+            this.activeGroupIdByUri.set(targetUri, newGroup.id);
+            this.onDidChangeFiltersEmitter.fire(targetUri);
+        }
+        return newGroup;
+    }
+
+    public cloneGroup(groupId: string, uri?: string): FilterGroup | undefined {
+        const targetUri = uri || this.activeDocumentUri;
+        if (!targetUri) return undefined;
+
+        const groups = this.ensureGroups(targetUri);
+        const source = groups.find(g => g.id === groupId);
+        if (!source) return undefined;
+
+        const cloneName = `${source.name} (copy)`;
+        const cloned = createGroup(cloneName);
+        // Deep-copy each filter with a new id
+        cloned.filters = source.filters.map(f => ({ ...f, id: Math.random().toString(36).substring(2, 9) }));
+
+        groups.push(cloned);
+        this.groupsByUri.set(targetUri, groups);
+        // Activate the newly cloned group
+        this.activeGroupIdByUri.set(targetUri, cloned.id);
+        this.onDidChangeFiltersEmitter.fire(targetUri);
+        return cloned;
+    }
+
+    public renameGroup(groupId: string, name: string, uri?: string) {
+        const targetUri = uri || this.activeDocumentUri;
+        if (!targetUri) return;
+
+        const groups = this.ensureGroups(targetUri);
+        const group = groups.find(g => g.id === groupId);
+        if (group) {
+            group.name = name;
+            this.onDidChangeFiltersEmitter.fire(targetUri);
+        }
+    }
+
+    public setActiveGroup(groupId: string, uri?: string) {
+        const targetUri = uri || this.activeDocumentUri;
+        if (!targetUri) return;
+
+        const groups = this.ensureGroups(targetUri);
+        if (groups.find(g => g.id === groupId)) {
+            this.activeGroupIdByUri.set(targetUri, groupId);
+            this.onDidChangeFiltersEmitter.fire(targetUri);
+        }
+    }
+
+    public removeGroup(groupId: string, uri?: string) {
+        const targetUri = uri || this.activeDocumentUri;
+        if (!targetUri) return;
+
+        let groups = this.ensureGroups(targetUri);
+        const wasActive = this.activeGroupIdByUri.get(targetUri) === groupId;
+
+        groups = groups.filter(g => g.id !== groupId);
+
+        if (groups.length === 0) {
+            // Always keep at least one group
+            const defaultGroup = createGroup(this.nextAutoName(targetUri));
+            groups.push(defaultGroup);
+            this.activeGroupIdByUri.set(targetUri, defaultGroup.id);
+        } else if (wasActive) {
+            this.activeGroupIdByUri.set(targetUri, groups[0].id);
+        }
+
+        this.groupsByUri.set(targetUri, groups);
+        this.onDidChangeFiltersEmitter.fire(targetUri);
+    }
+
+    // -------------------------------------------------------------------------
+    // Filter-level operations (all scoped to the active group)
+    // -------------------------------------------------------------------------
+
     public getFilters(uri?: string): Filter[] {
         const targetUri = uri || this.activeDocumentUri;
         if (!targetUri) return [];
-        return this.filtersByUri.get(targetUri) || [];
+        return this.getActiveGroup(targetUri).filters;
     }
 
     public isFiltersActivated(uri?: string): boolean {
         const targetUri = uri || this.activeDocumentUri;
         if (!targetUri) return true;
-        // Default to true if not explicitly toggled off
         return this.isActivatedByUri.get(targetUri) !== false;
     }
 
@@ -90,7 +231,8 @@ export class FilterManager {
             return;
         }
 
-        const filters = this.getFilters(targetUri);
+        const group = this.getActiveGroup(targetUri);
+        const filters = group.filters;
 
         // Assign a letter 'a'-'z' to the new filter if one is available
         const usedLetters = new Set(filters.map(f => f.letter).filter(Boolean));
@@ -105,7 +247,6 @@ export class FilterManager {
         filter.letter = nextLetter;
 
         filters.push(filter);
-        this.filtersByUri.set(targetUri, filters);
         this.onDidChangeFiltersEmitter.fire(targetUri);
     }
 
@@ -113,19 +254,18 @@ export class FilterManager {
         const targetUri = uri || this.activeDocumentUri;
         if (!targetUri) return;
 
-        let filters = this.getFilters(targetUri);
-        filters = filters.filter(f => f.id !== id);
+        const group = this.getActiveGroup(targetUri);
+        group.filters = group.filters.filter(f => f.id !== id);
 
         // Reassign letters so there are no gaps
-        filters.forEach((f, index) => {
+        group.filters.forEach((f, index) => {
             if (index < 26) {
-                f.letter = String.fromCharCode(97 + index); // 'a' is 97
+                f.letter = String.fromCharCode(97 + index);
             } else {
                 f.letter = undefined;
             }
         });
 
-        this.filtersByUri.set(targetUri, filters);
         this.onDidChangeFiltersEmitter.fire(targetUri);
     }
 
@@ -133,7 +273,8 @@ export class FilterManager {
         const targetUri = uri || this.activeDocumentUri;
         if (!targetUri) return;
 
-        this.filtersByUri.set(targetUri, []);
+        const group = this.getActiveGroup(targetUri);
+        group.filters = [];
         this.onDidChangeFiltersEmitter.fire(targetUri);
     }
 
@@ -145,7 +286,6 @@ export class FilterManager {
         const filter = filters.find(f => f.id === id);
         if (filter) {
             filter.isEnabled = !filter.isEnabled;
-            this.filtersByUri.set(targetUri, filters);
             this.onDidChangeFiltersEmitter.fire(targetUri);
         }
     }
@@ -154,32 +294,29 @@ export class FilterManager {
         const targetUri = uri || this.activeDocumentUri;
         if (!targetUri) return;
 
-        const filters = this.getFilters(targetUri);
+        const group = this.getActiveGroup(targetUri);
+        const filters = group.filters;
         if (oldIndex < 0 || oldIndex >= filters.length || newIndex < 0 || newIndex > filters.length) {
             return;
         }
 
-        // Remove the filter from the old index
         const [movedFilter] = filters.splice(oldIndex, 1);
 
-        // Adjust newIndex if it was after the oldIndex (since we just removed an item)
         if (newIndex > oldIndex) {
             newIndex--;
         }
 
-        // Insert the filter at the new index
         filters.splice(newIndex, 0, movedFilter);
 
         // Reassign letters so they remain sequential 'a'-'z' from top to bottom
         filters.forEach((f, index) => {
             if (index < 26) {
-                f.letter = String.fromCharCode(97 + index); // 'a' is 97
+                f.letter = String.fromCharCode(97 + index);
             } else {
                 f.letter = undefined;
             }
         });
 
-        this.filtersByUri.set(targetUri, filters);
         this.onDidChangeFiltersEmitter.fire(targetUri);
     }
 
@@ -190,13 +327,15 @@ export class FilterManager {
         const filters = this.getFilters(targetUri);
         const index = filters.findIndex(f => f.id === updatedFilter.id);
         if (index !== -1) {
-            // Preserve the original filter's letter if present
             updatedFilter.letter = filters[index].letter;
             filters[index] = updatedFilter;
-            this.filtersByUri.set(targetUri, filters);
             this.onDidChangeFiltersEmitter.fire(targetUri);
         }
     }
+
+    // -------------------------------------------------------------------------
+    // XML helpers
+    // -------------------------------------------------------------------------
 
     private escapeXml(unsafe: string): string {
         return unsafe.replace(/[<>&'"]/g, (c) => {
@@ -224,6 +363,10 @@ export class FilterManager {
         });
     }
 
+    // -------------------------------------------------------------------------
+    // Import / Export (operates on the active group)
+    // -------------------------------------------------------------------------
+
     public async importFilters() {
         if (!this.activeDocumentUri) {
             vscode.window.showWarningMessage('Please focus a Filtered View tab to import filters into.');
@@ -240,7 +383,6 @@ export class FilterManager {
                 const xmlStr = data.toString();
 
                 const loadedFilters: Filter[] = [];
-                // Parse standard TextAnalysisTool.NET flat XML structure
                 const regex = /<filter\s+([^>]+)\/?>/gi;
                 let match;
 
@@ -248,12 +390,12 @@ export class FilterManager {
                     const attrs = match[1];
 
                     const getAttr = (name: string) => {
-                        const attrMatch = new RegExp(`\\b${name}=["']([^"']*)["']`, 'i').exec(attrs);
-                        return attrMatch ? this.unescapeXml(attrMatch[1]) : undefined;
+                        const attrMatch = new RegExp(`\\b${name}=(["'])([^"']*)\\1`, 'i').exec(attrs);
+                        return attrMatch ? this.unescapeXml(attrMatch[2]) : undefined;
                     };
 
                     const text = getAttr('text') || '';
-                    if (!text) continue; // skip invalid filters without text
+                    if (!text) continue;
 
                     const isEnabled = getAttr('enabled') === 'y';
                     const isExclude = getAttr('excluding') === 'y';
@@ -291,7 +433,9 @@ export class FilterManager {
                     }
                 });
 
-                this.filtersByUri.set(this.activeDocumentUri, loadedFilters);
+                // Replace the active group's filters
+                const group = this.getActiveGroup(this.activeDocumentUri);
+                group.filters = loadedFilters;
                 this.onDidChangeFiltersEmitter.fire(this.activeDocumentUri);
                 vscode.window.showInformationMessage('Filters imported successfully.');
             } catch (e) {
@@ -325,7 +469,6 @@ export class FilterManager {
                     const text = this.escapeXml(f.text);
                     const desc = this.escapeXml(f.description || '');
 
-                    // remove starting # for colors if present
                     const foreColor = f.foregroundColor.replace(/^#/, '');
                     const backColor = f.backgroundColor.replace(/^#/, '');
 
@@ -344,8 +487,8 @@ export class FilterManager {
                 xml += `  </filters>\n`;
                 xml += `</TextAnalysisTool.NET>\n`;
 
-                const data = Buffer.from(xml, 'utf8');
-                await vscode.workspace.fs.writeFile(uri, data);
+                const fileData = Buffer.from(xml, 'utf8');
+                await vscode.workspace.fs.writeFile(uri, fileData);
                 vscode.window.showInformationMessage('Filters exported successfully.');
             } catch (e) {
                 vscode.window.showErrorMessage('Failed to export filters.');

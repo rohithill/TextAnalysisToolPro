@@ -2,7 +2,7 @@
     "name": "textanalysistoolpro",
     "displayName": "TextAnalysisToolPro",
     "description": "A VS code extension inspired by TextAnalysisTool.NET",
-    "version": "0.0.1",
+    "version": "0.2.0",
     "publisher": "RohitHill",
     "engines": {
         "vscode": "^1.80.0"
@@ -109,6 +109,26 @@
                 "command": "textanalysistoolpro.removeAllFilters",
                 "title": "Remove All Filters",
                 "icon": "$(clear-all)"
+            },
+            {
+                "command": "textanalysistoolpro.createGroup",
+                "title": "New Filter Group",
+                "icon": "$(new-folder)"
+            },
+            {
+                "command": "textanalysistoolpro.cloneGroup",
+                "title": "Clone Filter Group",
+                "icon": "$(copy)"
+            },
+            {
+                "command": "textanalysistoolpro.renameGroup",
+                "title": "Rename Filter Group",
+                "icon": "$(edit)"
+            },
+            {
+                "command": "textanalysistoolpro.deleteGroup",
+                "title": "Delete Filter Group",
+                "icon": "$(trash)"
             }
         ],
         "keybindings": [

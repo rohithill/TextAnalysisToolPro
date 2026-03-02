@@ -178,4 +178,88 @@ suite('TextAnalysisToolPro Extension Test Suite', () => {
         const correctRegex = /tr\.style\.color\s*=\s*f\.foregroundColor;\s*tr\.style\.backgroundColor\s*=\s*f\.backgroundColor;/;
         assert.strictEqual(correctRegex.test(html), true, "Colors should be unconditionally applied to the row");
     });
+
+    // ── Group tests ─────────────────────────────────────────────────────────
+
+    test('FilterManager Group Creation Test', () => {
+        const filterManager = new FilterManager();
+        const testUri = 'textanalysistoolpro://%5BFiltered%5D%20test.log?file:///test.log';
+        filterManager.setActiveDocumentUri(testUri);
+
+        // Initially one default group named unnamed_1
+        const groups = filterManager.getGroups(testUri);
+        assert.strictEqual(groups.length, 1, 'Should have one default group');
+        assert.strictEqual(groups[0].name, 'unnamed_1', 'Default group should be named unnamed_1');
+
+        // Adding a second group
+        filterManager.addGroup(undefined, testUri);
+        const groups2 = filterManager.getGroups(testUri);
+        assert.strictEqual(groups2.length, 2, 'Should have two groups after addGroup');
+        assert.strictEqual(groups2[1].name, 'unnamed_2', 'Second group should be auto-named unnamed_2');
+
+        // New group is now active and has no filters
+        assert.strictEqual(filterManager.getFilters(testUri).length, 0, 'New group should start empty');
+    });
+
+    test('FilterManager Group Filter Isolation Test', () => {
+        const filterManager = new FilterManager();
+        const testUri = 'textanalysistoolpro://%5BFiltered%5D%20iso.log?file:///iso.log';
+        filterManager.setActiveDocumentUri(testUri);
+
+        // Add a filter to group A (unnamed_1)
+        const groupAId = filterManager.getActiveGroupId(testUri)!;
+        filterManager.addFilter(createFilter('ERROR'), testUri);
+        assert.strictEqual(filterManager.getFilters(testUri).length, 1, 'Group A should have 1 filter');
+
+        // Create group B and switch to it
+        filterManager.addGroup(undefined, testUri); // also activates group B
+        assert.strictEqual(filterManager.getFilters(testUri).length, 0, 'Group B should be empty');
+
+        // Switch back to group A
+        filterManager.setActiveGroup(groupAId, testUri);
+        assert.strictEqual(filterManager.getFilters(testUri).length, 1, 'Group A should still have 1 filter');
+    });
+
+    test('FilterManager Clone Group Test', () => {
+        const filterManager = new FilterManager();
+        const testUri = 'textanalysistoolpro://%5BFiltered%5D%20clone.log?file:///clone.log';
+        filterManager.setActiveDocumentUri(testUri);
+
+        // Add filters to the default group
+        const groupAId = filterManager.getActiveGroupId(testUri)!;
+        const f1 = createFilter('ERROR');
+        const f2 = createFilter('WARN');
+        filterManager.addFilter(f1, testUri);
+        filterManager.addFilter(f2, testUri);
+
+        // Clone the group
+        const cloned = filterManager.cloneGroup(groupAId, testUri)!;
+        assert.ok(cloned, 'Cloned group should be returned');
+        assert.ok(cloned.name.includes('copy'), 'Cloned group name should mention copy');
+        assert.strictEqual(cloned.filters.length, 2, 'Cloned group should have 2 filters');
+
+        // Filter IDs should be different
+        assert.notStrictEqual(cloned.filters[0].id, f1.id, 'Cloned filter should have a different id');
+
+        // Active group should now be the clone
+        assert.strictEqual(filterManager.getActiveGroupId(testUri), cloned.id, 'Clone should become active');
+    });
+
+    test('FilterManager Delete Group Test', () => {
+        const filterManager = new FilterManager();
+        const testUri = 'textanalysistoolpro://%5BFiltered%5D%20del.log?file:///del.log';
+        filterManager.setActiveDocumentUri(testUri);
+
+        const groupAId = filterManager.getActiveGroupId(testUri)!;
+        filterManager.addGroup(undefined, testUri); // now 2 groups; unnamed_2 is active
+
+        // Delete unnamed_2 (currently active)
+        const groupBId = filterManager.getActiveGroupId(testUri)!;
+        filterManager.removeGroup(groupBId, testUri);
+
+        const remaining = filterManager.getGroups(testUri);
+        assert.strictEqual(remaining.length, 1, 'Should be back to 1 group');
+        assert.strictEqual(filterManager.getActiveGroupId(testUri), groupAId, 'Should fall back to group A');
+    });
 });
+
