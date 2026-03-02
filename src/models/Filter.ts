@@ -11,6 +11,12 @@ export interface Filter {
     letter?: string;
 }
 
+export interface FilterGroup {
+    id: string;
+    name: string;
+    filters: Filter[];
+}
+
 export function createFilter(
     text: string,
     isRegex = false,
@@ -30,5 +36,13 @@ export function createFilter(
         foregroundColor,
         backgroundColor,
         description
+    };
+}
+
+export function createGroup(name?: string): FilterGroup {
+    return {
+        id: Math.random().toString(36).substring(2, 9),
+        name: name || '',
+        filters: []
     };
 }
