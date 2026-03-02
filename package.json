@@ -3,6 +3,7 @@
     "displayName": "TextAnalysisToolPro",
     "description": "A VS code extension inspired by TextAnalysisTool.NET",
     "version": "0.0.1",
+    "publisher": "RohitHill",
     "engines": {
         "vscode": "^1.80.0"
     },
