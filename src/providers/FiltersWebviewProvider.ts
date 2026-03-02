@@ -216,10 +216,8 @@ export class FiltersWebviewProvider implements vscode.WebviewViewProvider {
                 tr.ondblclick = () => vscode.postMessage({ type: 'editFilter', id: f.id });
                 
                 // Colors logic
-                if (f.isEnabled) {
-                    tr.style.color = f.foregroundColor;
-                    tr.style.backgroundColor = f.backgroundColor;
-                }
+                tr.style.color = f.foregroundColor;
+                tr.style.backgroundColor = f.backgroundColor;
 
                 // Checkbox
                 const tdCheck = document.createElement('td');

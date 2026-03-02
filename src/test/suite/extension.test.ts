@@ -2,10 +2,9 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { FilterManager } from '../../managers/FilterManager';
 import { FilteredDocumentProvider } from '../../providers/FilteredDocumentProvider';
+import { FiltersWebviewProvider } from '../../providers/FiltersWebviewProvider';
 import { createFilter } from '../../models/Filter';
 import { filterManager as globalFilterManager } from '../../extension';
-import { FiltersWebviewProvider } from '../../providers/FiltersWebviewProvider';
-
 suite('TextAnalysisToolPro Extension Test Suite', () => {
     vscode.window.showInformationMessage('Start all tests.');
 
@@ -152,7 +151,6 @@ suite('TextAnalysisToolPro Extension Test Suite', () => {
         // cleanup
         await vscode.workspace.fs.delete(mockFileUri);
     });
-
     test('FiltersWebviewProvider HTML Generation Test for Double Click Edit', async () => {
         const filterManager = new FilterManager();
         const provider = new FiltersWebviewProvider(vscode.Uri.file(__dirname), filterManager);
@@ -162,5 +160,22 @@ suite('TextAnalysisToolPro Extension Test Suite', () => {
             html.includes("tr.ondblclick"),
             "Double-clicking a filter row should trigger edit"
         );
+    });
+
+    test('FiltersWebviewProvider HTML Color Test', async () => {
+        const filterManager = new FilterManager();
+        const provider = new FiltersWebviewProvider(
+            vscode.Uri.file(__dirname),
+            filterManager
+        );
+
+        const html: string = (provider as any)._getHtmlForWebview();
+
+        // Ensure color is applied unconditionally, not within an if (f.isEnabled) block
+        const bugRegex = /if\s*\(f\.isEnabled\)\s*\{\s*tr\.style\.color/;
+        assert.strictEqual(bugRegex.test(html), false, "Colors should not be conditionally applied only when enabled");
+
+        const correctRegex = /tr\.style\.color\s*=\s*f\.foregroundColor;\s*tr\.style\.backgroundColor\s*=\s*f\.backgroundColor;/;
+        assert.strictEqual(correctRegex.test(html), true, "Colors should be unconditionally applied to the row");
     });
 });
