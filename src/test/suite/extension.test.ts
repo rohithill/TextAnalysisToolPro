@@ -60,4 +60,44 @@ suite('TextAnalysisToolPro Extension Test Suite', () => {
             await vscode.workspace.fs.delete(mockFileUri);
         }
     });
+
+    test('FilterManager Line Mapping Cache Test', async () => {
+        const filterManager = new FilterManager();
+        const mockFileUri = vscode.Uri.file(__dirname + '/mock_map.log');
+        const contentData = Buffer.from("Line 1\nLine 2 MATCH\nLine 3\nLine 4 MATCH\nLine 5");
+        await vscode.workspace.fs.writeFile(mockFileUri, contentData);
+
+        const virtualUri = vscode.Uri.from({
+            scheme: FilteredDocumentProvider.scheme,
+            path: '/[Filtered] mock_map.log',
+            query: mockFileUri.toString()
+        });
+        const testUri = virtualUri.toString();
+
+        filterManager.setActiveDocumentUri(testUri);
+
+        const myFilter = createFilter("MATCH");
+        filterManager.addFilter(myFilter, testUri);
+
+        const provider = new FilteredDocumentProvider(filterManager);
+
+        try {
+            // Document should only contain Line 2 (source line index 1) and Line 4 (source line index 3)
+            await provider.provideTextDocumentContent(virtualUri);
+
+            // Forward mapping
+            assert.strictEqual(filterManager.getSourceLineFromVirtualLine(testUri, 0), 1);
+            assert.strictEqual(filterManager.getSourceLineFromVirtualLine(testUri, 1), 3);
+
+            // Backward mapping
+            assert.strictEqual(filterManager.getVirtualLineFromSourceLine(testUri, 1), 0);
+
+            // Nearest Match tests
+            assert.strictEqual(filterManager.getVirtualLineFromSourceLine(testUri, 0), 0); // Nearest is line 1 (virtual 0)
+            assert.strictEqual(filterManager.getVirtualLineFromSourceLine(testUri, 2), 1); // Nearest is line 3 (virtual 1)
+            assert.strictEqual(filterManager.getVirtualLineFromSourceLine(testUri, 4), 1); // Beyond matches = last virtual
+        } finally {
+            await vscode.workspace.fs.delete(mockFileUri);
+        }
+    });
 });
