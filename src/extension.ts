@@ -103,8 +103,52 @@ export function activate(context: vscode.ExtensionContext) {
         }
     }));
 
-    context.subscriptions.push(vscode.commands.registerCommand('textanalysistoolpro.toggleFilterActivation', () => {
-        filterManager.toggleFiltersActivation();
+    context.subscriptions.push(vscode.commands.registerCommand('textanalysistoolpro.toggleFilterActivation', async () => {
+        const activeEditor = vscode.window.activeTextEditor;
+        if (!activeEditor || activeEditor.document.uri.scheme !== FilteredDocumentProvider.scheme) {
+            filterManager.toggleFiltersActivation();
+            return;
+        }
+
+        const uriString = activeEditor.document.uri.toString();
+        const currentActiveLine = activeEditor.selection.active.line;
+        const wasFiltersActivated = filterManager.isFiltersActivated(uriString);
+
+        // Map the current visible line to its underlying source line BEFORE toggle
+        let sourceLineTarget: number | undefined;
+        if (wasFiltersActivated) {
+            sourceLineTarget = filterManager.getSourceLineFromVirtualLine(uriString, currentActiveLine);
+        } else {
+            // Unfiltered view, so virtual line == source line
+            sourceLineTarget = currentActiveLine;
+        }
+
+        // Toggle the filters
+        filterManager.toggleFiltersActivation(uriString);
+
+        // Give the virtual document content provider a moment to rebuild the lines array and store the new mappings
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        if (sourceLineTarget !== undefined) {
+            const isFiltersNowActivated = filterManager.isFiltersActivated(uriString);
+            let newTargetVirtualLine = 0;
+
+            if (isFiltersNowActivated) {
+                // We turned filters ON. Map the source line to the closest surviving filtered line.
+                const mappedLine = filterManager.getVirtualLineFromSourceLine(uriString, sourceLineTarget);
+                if (mappedLine !== undefined) {
+                    newTargetVirtualLine = mappedLine;
+                }
+            } else {
+                // We turned filters OFF. The document is 1:1, so virtual line == source line
+                newTargetVirtualLine = sourceLineTarget;
+            }
+
+            // Move the cursor back
+            const newRange = new vscode.Range(newTargetVirtualLine, 0, newTargetVirtualLine, 0);
+            activeEditor.selection = new vscode.Selection(newRange.start, newRange.end);
+            activeEditor.revealRange(newRange, vscode.TextEditorRevealType.InCenter);
+        }
     }));
 
     // Track active virtual documents

@@ -52,10 +52,14 @@ export class FilteredDocumentProvider implements vscode.TextDocumentContentProvi
 
         // As requested: If user has not added any filter, or if filters are toggled off via Ctrl+H, full content is displayed by default.
         if (filters.length === 0 || !this.filterManager.isFiltersActivated(uri.toString())) {
+            // Unfiltered: virtual lines map 1:1 with source lines
+            const allIndices = Array.from({ length: sourceText.split(/\r?\n/).length }, (_, i) => i);
+            this.filterManager.setLineMatchCache(uri.toString(), allIndices);
             return sourceText;
         }
 
         const matchedLines: string[] = [];
+        const mappedIndices: number[] = [];
         const lines = sourceText.split(/\r?\n/);
 
         for (let i = 0; i < lines.length; i++) {
@@ -92,9 +96,11 @@ export class FilteredDocumentProvider implements vscode.TextDocumentContentProvi
 
             if (matchInclude && !matchExclude) {
                 matchedLines.push(lineText);
+                mappedIndices.push(i);
             }
         }
 
+        this.filterManager.setLineMatchCache(uri.toString(), mappedIndices);
         return matchedLines.join('\n');
     }
 }
