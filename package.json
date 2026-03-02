@@ -12,6 +12,21 @@
     "activationEvents": [],
     "main": "./out/extension.js",
     "contributes": {
+        "configuration": {
+            "title": "TextAnalysisToolPro",
+            "properties": {
+                "textanalysistoolpro.defaultForegroundColor": {
+                    "type": "string",
+                    "default": "#ffffff",
+                    "description": "Default foreground color for new filters."
+                },
+                "textanalysistoolpro.defaultBackgroundColor": {
+                    "type": "string",
+                    "default": "#44475a",
+                    "description": "Default background color for new filters."
+                }
+            }
+        },
         "viewsContainers": {
             "activitybar": [
                 {
@@ -26,7 +41,14 @@
                 {
                     "id": "filtersView",
                     "name": "Filters",
+                    "type": "webview",
                     "icon": "$(filter)"
+                },
+                {
+                    "id": "filterEditorView",
+                    "name": "Filter Editor",
+                    "type": "webview",
+                    "icon": "$(edit)"
                 }
             ]
         },
@@ -52,26 +74,355 @@
             },
             {
                 "command": "textanalysistoolpro.showFiltered",
-                "title": "Show Only Filtered Lines",
-                "icon": "$(eye)"
+                "title": "Open File for Analysis",
+                "icon": "$(root-folder-opened)"
             },
             {
                 "command": "textanalysistoolpro.importFilters",
                 "title": "Import Filters",
-                "icon": "$(file-symlink-file)"
+                "icon": "$(file-directory-create)"
             },
             {
                 "command": "textanalysistoolpro.exportFilters",
                 "title": "Export Filters",
                 "icon": "$(save-all)"
+            },
+            {
+                "command": "textanalysistoolpro.toggleFilterActivation",
+                "title": "Toggle Filter Activation"
+            },
+            {
+                "command": "textanalysistoolpro.goToNextMatch",
+                "title": "Go To Next Match"
+            },
+            {
+                "command": "textanalysistoolpro.goToPreviousMatch",
+                "title": "Go To Previous Match"
+            },
+            {
+                "command": "textanalysistoolpro.analyzeCurrentFile",
+                "title": "Analyze Current File",
+                "icon": "$(file-code)"
             }
         ],
         "keybindings": [
             {
-                "command": "textanalysistoolpro.showFiltered",
+                "command": "textanalysistoolpro.toggleFilterActivation",
                 "key": "ctrl+h",
                 "mac": "cmd+h",
                 "when": "editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToNextMatch",
+                "key": "a",
+                "args": "a",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToPreviousMatch",
+                "key": "shift+a",
+                "args": "a",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToNextMatch",
+                "key": "b",
+                "args": "b",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToPreviousMatch",
+                "key": "shift+b",
+                "args": "b",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToNextMatch",
+                "key": "c",
+                "args": "c",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToPreviousMatch",
+                "key": "shift+c",
+                "args": "c",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToNextMatch",
+                "key": "d",
+                "args": "d",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToPreviousMatch",
+                "key": "shift+d",
+                "args": "d",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToNextMatch",
+                "key": "e",
+                "args": "e",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToPreviousMatch",
+                "key": "shift+e",
+                "args": "e",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToNextMatch",
+                "key": "f",
+                "args": "f",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToPreviousMatch",
+                "key": "shift+f",
+                "args": "f",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToNextMatch",
+                "key": "g",
+                "args": "g",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToPreviousMatch",
+                "key": "shift+g",
+                "args": "g",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToNextMatch",
+                "key": "h",
+                "args": "h",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToPreviousMatch",
+                "key": "shift+h",
+                "args": "h",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToNextMatch",
+                "key": "i",
+                "args": "i",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToPreviousMatch",
+                "key": "shift+i",
+                "args": "i",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToNextMatch",
+                "key": "j",
+                "args": "j",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToPreviousMatch",
+                "key": "shift+j",
+                "args": "j",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToNextMatch",
+                "key": "k",
+                "args": "k",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToPreviousMatch",
+                "key": "shift+k",
+                "args": "k",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToNextMatch",
+                "key": "l",
+                "args": "l",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToPreviousMatch",
+                "key": "shift+l",
+                "args": "l",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToNextMatch",
+                "key": "m",
+                "args": "m",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToPreviousMatch",
+                "key": "shift+m",
+                "args": "m",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToNextMatch",
+                "key": "n",
+                "args": "n",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToPreviousMatch",
+                "key": "shift+n",
+                "args": "n",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToNextMatch",
+                "key": "o",
+                "args": "o",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToPreviousMatch",
+                "key": "shift+o",
+                "args": "o",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToNextMatch",
+                "key": "p",
+                "args": "p",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToPreviousMatch",
+                "key": "shift+p",
+                "args": "p",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToNextMatch",
+                "key": "q",
+                "args": "q",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToPreviousMatch",
+                "key": "shift+q",
+                "args": "q",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToNextMatch",
+                "key": "r",
+                "args": "r",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToPreviousMatch",
+                "key": "shift+r",
+                "args": "r",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToNextMatch",
+                "key": "s",
+                "args": "s",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToPreviousMatch",
+                "key": "shift+s",
+                "args": "s",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToNextMatch",
+                "key": "t",
+                "args": "t",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToPreviousMatch",
+                "key": "shift+t",
+                "args": "t",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToNextMatch",
+                "key": "u",
+                "args": "u",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToPreviousMatch",
+                "key": "shift+u",
+                "args": "u",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToNextMatch",
+                "key": "v",
+                "args": "v",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToPreviousMatch",
+                "key": "shift+v",
+                "args": "v",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToNextMatch",
+                "key": "w",
+                "args": "w",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToPreviousMatch",
+                "key": "shift+w",
+                "args": "w",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToNextMatch",
+                "key": "x",
+                "args": "x",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToPreviousMatch",
+                "key": "shift+x",
+                "args": "x",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToNextMatch",
+                "key": "y",
+                "args": "y",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToPreviousMatch",
+                "key": "shift+y",
+                "args": "y",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToNextMatch",
+                "key": "z",
+                "args": "z",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
+            },
+            {
+                "command": "textanalysistoolpro.goToPreviousMatch",
+                "key": "shift+z",
+                "args": "z",
+                "when": "resourceScheme == 'textanalysistoolpro' && editorTextFocus"
             }
         ],
         "menus": {
@@ -87,9 +438,14 @@
                     "group": "navigation@2"
                 },
                 {
-                    "command": "textanalysistoolpro.importFilters",
+                    "command": "textanalysistoolpro.analyzeCurrentFile",
                     "when": "view == filtersView",
                     "group": "navigation@3"
+                },
+                {
+                    "command": "textanalysistoolpro.importFilters",
+                    "when": "view == filtersView",
+                    "group": "navigation@4"
                 },
                 {
                     "command": "textanalysistoolpro.exportFilters",
@@ -122,15 +478,15 @@
         "test": "node ./out/test/runTest.js"
     },
     "devDependencies": {
-        "@types/vscode": "^1.80.0",
         "@types/mocha": "^10.0.1",
         "@types/node": "18.x",
+        "@types/vscode": "^1.80.0",
         "@typescript-eslint/eslint-plugin": "^5.59.8",
         "@typescript-eslint/parser": "^5.59.8",
+        "@vscode/test-electron": "^2.3.2",
         "eslint": "^8.41.0",
         "glob": "^8.1.0",
         "mocha": "^10.2.0",
-        "typescript": "^5.1.3",
-        "@vscode/test-electron": "^2.3.2"
+        "typescript": "^5.1.3"
     }
 }
