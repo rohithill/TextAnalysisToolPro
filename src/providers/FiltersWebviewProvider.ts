@@ -52,6 +52,9 @@ export class FiltersWebviewProvider implements vscode.WebviewViewProvider {
                     }
                     break;
                 }
+                case 'moveFilter':
+                    this._filterManager.moveFilter(message.oldIndex, message.newIndex);
+                    break;
             }
         });
 
@@ -175,6 +178,23 @@ export class FiltersWebviewProvider implements vscode.WebviewViewProvider {
         input[type="checkbox"] {
             cursor: pointer;
         }
+        
+        /* Drag and Drop visual feedback */
+        tr.draggable {
+            cursor: grab;
+        }
+        tr.draggable:active {
+            cursor: grabbing;
+        }
+        tr.drag-over-top {
+            border-top: 2px solid var(--vscode-focusBorder);
+        }
+        tr.drag-over-bottom {
+            border-bottom: 2px solid var(--vscode-focusBorder);
+        }
+        tr.dragging {
+            opacity: 0.4;
+        }
     </style>
 </head>
 <body>
@@ -207,14 +227,77 @@ export class FiltersWebviewProvider implements vscode.WebviewViewProvider {
             }
         });
 
+        let draggedRow = null;
+
         function renderFilters(filters) {
             tbody.innerHTML = '';
             
-            filters.forEach(f => {
+            filters.forEach((f, index) => {
                 const tr = document.createElement('tr');
-                tr.className = f.isEnabled ? 'enabled' : 'disabled';
+                tr.className = f.isEnabled ? 'enabled draggable' : 'disabled draggable';
                 tr.ondblclick = () => vscode.postMessage({ type: 'editFilter', id: f.id });
                 
+                // Drag and drop HTML5 attributes
+                tr.draggable = true;
+                tr.dataset.index = index;
+
+                tr.addEventListener('dragstart', (e) => {
+                    draggedRow = tr;
+                    e.dataTransfer.effectAllowed = 'move';
+                    // We need to set some data for Firefox to allow dragging
+                    e.dataTransfer.setData('text/plain', index);
+                    tr.classList.add('dragging');
+                });
+
+                tr.addEventListener('dragend', (e) => {
+                    tr.classList.remove('dragging');
+                    draggedRow = null;
+                    clearDragStyles();
+                });
+
+                tr.addEventListener('dragover', (e) => {
+                    e.preventDefault(); // Necessary to allow dropping
+                    e.dataTransfer.dropEffect = 'move';
+                    
+                    if (draggedRow === tr) return;
+
+                    clearDragStyles();
+                    
+                    const rect = tr.getBoundingClientRect();
+                    const midY = rect.top + rect.height / 2;
+                    if (e.clientY < midY) {
+                        tr.classList.add('drag-over-top');
+                    } else {
+                        tr.classList.add('drag-over-bottom');
+                    }
+                });
+
+                tr.addEventListener('dragleave', (e) => {
+                    tr.classList.remove('drag-over-top');
+                    tr.classList.remove('drag-over-bottom');
+                });
+
+                tr.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    clearDragStyles();
+                    
+                    if (!draggedRow || draggedRow === tr) return;
+
+                    const oldIndex = parseInt(draggedRow.dataset.index, 10);
+                    let newIndex = parseInt(tr.dataset.index, 10);
+
+                    // If dropped on the bottom half, insert after
+                    const rect = tr.getBoundingClientRect();
+                    const midY = rect.top + rect.height / 2;
+                    if (e.clientY >= midY) {
+                        newIndex++;
+                    }
+
+                    if (oldIndex !== newIndex) {
+                        vscode.postMessage({ type: 'moveFilter', oldIndex, newIndex });
+                    }
+                });
+
                 // Colors logic
                 tr.style.color = f.foregroundColor;
                 tr.style.backgroundColor = f.backgroundColor;
@@ -274,6 +357,14 @@ export class FiltersWebviewProvider implements vscode.WebviewViewProvider {
                 tr.appendChild(tdActions);
 
                 tbody.appendChild(tr);
+            });
+        }
+        
+        function clearDragStyles() {
+            const rows = tbody.querySelectorAll('tr');
+            rows.forEach(r => {
+                r.classList.remove('drag-over-top');
+                r.classList.remove('drag-over-bottom');
             });
         }
     </script>

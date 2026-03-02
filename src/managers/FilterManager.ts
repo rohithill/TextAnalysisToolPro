@@ -142,6 +142,39 @@ export class FilterManager {
         }
     }
 
+    public moveFilter(oldIndex: number, newIndex: number, uri?: string) {
+        const targetUri = uri || this.activeDocumentUri;
+        if (!targetUri) return;
+
+        const filters = this.getFilters(targetUri);
+        if (oldIndex < 0 || oldIndex >= filters.length || newIndex < 0 || newIndex > filters.length) {
+            return;
+        }
+
+        // Remove the filter from the old index
+        const [movedFilter] = filters.splice(oldIndex, 1);
+
+        // Adjust newIndex if it was after the oldIndex (since we just removed an item)
+        if (newIndex > oldIndex) {
+            newIndex--;
+        }
+
+        // Insert the filter at the new index
+        filters.splice(newIndex, 0, movedFilter);
+
+        // Reassign letters so they remain sequential 'a'-'z' from top to bottom
+        filters.forEach((f, index) => {
+            if (index < 26) {
+                f.letter = String.fromCharCode(97 + index); // 'a' is 97
+            } else {
+                f.letter = undefined;
+            }
+        });
+
+        this.filtersByUri.set(targetUri, filters);
+        this.onDidChangeFiltersEmitter.fire(targetUri);
+    }
+
     public updateFilter(updatedFilter: Filter, uri?: string) {
         const targetUri = uri || this.activeDocumentUri;
         if (!targetUri) return;
