@@ -1,0 +1,38 @@
+name: Release Extension
+
+on:
+  push:
+    tags:
+      - 'v*' # Trigger on push events matching v*, e.g., v0.1, v1.0.0
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Required for creating a GitHub release and uploading assets
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20' # Using Node 20 as required by latest VS Code dependencies
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Package extension
+        run: npx @vscode/vsce package -o textanalysistoolpro-${{ github.ref_name }}.vsix
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }} # Optional if publishing to Marketplace later, but fine without for just packaging
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Release ${{ github.ref_name }}
+          files: textanalysistoolpro-${{ github.ref_name }}.vsix
+          draft: false
+          prerelease: false
+          generate_release_notes: true
