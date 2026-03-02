@@ -17,7 +17,38 @@ export class FilterManager {
     private onDidChangeActiveDocumentEmitter = new vscode.EventEmitter<string | undefined>();
     public readonly onDidChangeActiveDocument = this.onDidChangeActiveDocumentEmitter.event;
 
+    // Map of Virtual Document URI String -> Array of Source Line Numbers
+    // Used to map a virtual line back to its original file line number
+    private lineMatchCache: Map<string, number[]> = new Map();
+
     constructor() { }
+
+    public setLineMatchCache(uri: string, matches: number[]) {
+        this.lineMatchCache.set(uri, matches);
+    }
+
+    public getSourceLineFromVirtualLine(uri: string, virtualLine: number): number | undefined {
+        const matches = this.lineMatchCache.get(uri);
+        if (matches && virtualLine >= 0 && virtualLine < matches.length) {
+            return matches[virtualLine];
+        }
+        return undefined;
+    }
+
+    public getVirtualLineFromSourceLine(uri: string, sourceLine: number): number | undefined {
+        const matches = this.lineMatchCache.get(uri);
+        if (!matches) return undefined;
+
+        // Find the first virtual line that corresponds to this source line or the nearest subsequent matched line
+        for (let vLine = 0; vLine < matches.length; vLine++) {
+            if (matches[vLine] >= sourceLine) {
+                return vLine;
+            }
+        }
+
+        // If the source line is beyond all matches, return the last virtual line
+        return matches.length > 0 ? matches.length - 1 : undefined;
+    }
 
     public setActiveDocumentUri(uri: string | undefined) {
         if (this.activeDocumentUri !== uri) {
