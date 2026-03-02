@@ -5,12 +5,11 @@ import { Decorator } from './Decorator';
 import { FilteredDocumentProvider } from './providers/FilteredDocumentProvider';
 import { FilterEditorProvider } from './providers/FilterEditorProvider';
 
-let filterManager: FilterManager;
+export const filterManager = new FilterManager();
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('TextAnalysisToolPro is now active.');
 
-    filterManager = new FilterManager();
 
     // Initialize UI Providers
     const filtersWebviewProvider = new FiltersWebviewProvider(context.extensionUri, filterManager);
@@ -126,8 +125,23 @@ export function activate(context: vscode.ExtensionContext) {
         // Toggle the filters
         filterManager.toggleFiltersActivation(uriString);
 
-        // Give the virtual document content provider a moment to rebuild the lines array and store the new mappings
-        await new Promise(resolve => setTimeout(resolve, 100));
+        // Wait for VS Code to physically update the editor's text buffer
+        await new Promise<void>(resolve => {
+            // Failsafe timeout in case the document identical or doesn't update
+            const timeout = setTimeout(() => {
+                disposable.dispose();
+                resolve();
+            }, 1000);
+
+            const disposable = vscode.workspace.onDidChangeTextDocument(e => {
+                if (e.document.uri.toString() === uriString) {
+                    clearTimeout(timeout);
+                    disposable.dispose();
+                    // A tiny tick to let VS Code finish processing the internal selection clamp that fires when text changes
+                    setTimeout(resolve, 10);
+                }
+            });
+        });
 
         if (sourceLineTarget !== undefined) {
             const isFiltersNowActivated = filterManager.isFiltersActivated(uriString);
