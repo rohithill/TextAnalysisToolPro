@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import { FilterManager } from '../../managers/FilterManager';
 import { FilteredDocumentProvider } from '../../providers/FilteredDocumentProvider';
 import { createFilter } from '../../models/Filter';
+import { filterManager as globalFilterManager } from '../../extension';
 
 suite('TextAnalysisToolPro Extension Test Suite', () => {
     vscode.window.showInformationMessage('Start all tests.');
@@ -99,5 +100,55 @@ suite('TextAnalysisToolPro Extension Test Suite', () => {
         } finally {
             await vscode.workspace.fs.delete(mockFileUri);
         }
+    });
+
+    test('Toggle Cursor Sync E2E Test', async () => {
+        const ext = vscode.extensions.getExtension('rohithill.textanalysistoolpro');
+        await ext?.activate();
+
+        const mockFileUri = vscode.Uri.file(__dirname + '/mock_sync2.log');
+        const contentData = Buffer.from(
+            "Line 1\nLine 2 MATCH\nLine 3\nLine 4 MATCH\nLine 5\nLine 6 MATCH\nLine 7\nLine 8 MATCH\nLine 9\nLine 10 MATCH"
+        );
+        await vscode.workspace.fs.writeFile(mockFileUri, contentData);
+
+        const virtualUri = vscode.Uri.from({
+            scheme: FilteredDocumentProvider.scheme,
+            path: '/[Filtered] mock_sync2.log',
+            query: mockFileUri.toString()
+        });
+        const testUri = virtualUri.toString();
+
+        const doc = await vscode.workspace.openTextDocument(virtualUri);
+        const editor = await vscode.window.showTextDocument(doc);
+
+        // Add a filter so it actually filters
+        const myFilter = createFilter("MATCH");
+        globalFilterManager.addFilter(myFilter, testUri);
+
+        // Wait for doc to update
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // Let's set the cursor to "Line 8 MATCH". This is virtual line index 3.
+        const startRange = new vscode.Range(3, 0, 3, 0);
+        editor.selection = new vscode.Selection(startRange.start, startRange.end);
+        assert.strictEqual(editor.selection.active.line, 3);
+
+        // Execute toggle
+        await vscode.commands.executeCommand('textanalysistoolpro.toggleFilterActivation');
+
+        // Wait for text to update and cursor to move
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // The cursor should be moved to line index 7 (the source index of Line 8 MATCH)
+        try {
+            assert.strictEqual(editor.selection.active.line, 7);
+        } catch (e) {
+            await vscode.workspace.fs.delete(mockFileUri);
+            throw e;
+        }
+
+        // cleanup
+        await vscode.workspace.fs.delete(mockFileUri);
     });
 });
