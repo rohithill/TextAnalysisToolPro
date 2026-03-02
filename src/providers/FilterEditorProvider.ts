@@ -128,15 +128,15 @@ export class FilterEditorProvider implements vscode.WebviewViewProvider {
     <div class="form-group">
         <div class="checkbox-group">
             <input type="checkbox" id="is-regex">
-            <label for="is-regex">Regular Expression</label>
+            <label for="is-regex">[R] Regular Expression</label>
         </div>
         <div class="checkbox-group">
             <input type="checkbox" id="match-case">
-            <label for="match-case">Match Case</label>
+            <label for="match-case">[Aa] Match Case</label>
         </div>
         <div class="checkbox-group">
             <input type="checkbox" id="is-exclude">
-            <label for="is-exclude">Exclude Lines</label>
+            <label for="is-exclude">[!] Exclude Lines</label>
         </div>
     </div>
     

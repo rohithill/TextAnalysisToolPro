@@ -106,10 +106,10 @@ export class FiltersWebviewProvider implements vscode.WebviewViewProvider {
                 hitCount,
                 letterStr: filter.letter ? filter.letter : ' ',
                 mods: [
-                    filter.isRegex ? 'Regex' : '',
-                    filter.isMatchCase ? 'Case' : '',
-                    filter.isExclude ? 'Exclude' : ''
-                ].filter(Boolean).join(',')
+                    filter.isRegex ? '[R]' : '',
+                    filter.isMatchCase ? '[Aa]' : '',
+                    filter.isExclude ? '[!]' : ''
+                ].filter(Boolean).join(' ')
             };
         });
 
@@ -161,9 +161,7 @@ export class FiltersWebviewProvider implements vscode.WebviewViewProvider {
         tr.enabled {
             opacity: 1;
         }
-        tr.disabled {
-            opacity: 0.5;
-        }
+
         .actions {
             display: flex;
             gap: 4px;
