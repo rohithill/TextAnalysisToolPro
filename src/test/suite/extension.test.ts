@@ -4,6 +4,7 @@ import { FilterManager } from '../../managers/FilterManager';
 import { FilteredDocumentProvider } from '../../providers/FilteredDocumentProvider';
 import { createFilter } from '../../models/Filter';
 import { filterManager as globalFilterManager } from '../../extension';
+import { FiltersWebviewProvider } from '../../providers/FiltersWebviewProvider';
 
 suite('TextAnalysisToolPro Extension Test Suite', () => {
     vscode.window.showInformationMessage('Start all tests.');
@@ -150,5 +151,16 @@ suite('TextAnalysisToolPro Extension Test Suite', () => {
 
         // cleanup
         await vscode.workspace.fs.delete(mockFileUri);
+    });
+
+    test('FiltersWebviewProvider HTML Generation Test for Double Click Edit', async () => {
+        const filterManager = new FilterManager();
+        const provider = new FiltersWebviewProvider(vscode.Uri.file(__dirname), filterManager);
+        const html = (provider as any)._getHtmlForWebview();
+
+        assert.ok(
+            html.includes("tr.ondblclick"),
+            "Double-clicking a filter row should trigger edit"
+        );
     });
 });

@@ -213,6 +213,7 @@ export class FiltersWebviewProvider implements vscode.WebviewViewProvider {
             filters.forEach(f => {
                 const tr = document.createElement('tr');
                 tr.className = f.isEnabled ? 'enabled' : 'disabled';
+                tr.ondblclick = () => vscode.postMessage({ type: 'editFilter', id: f.id });
                 
                 // Colors logic
                 if (f.isEnabled) {
