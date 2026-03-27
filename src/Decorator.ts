@@ -25,6 +25,13 @@ export class Decorator {
             this.clearDecorations();
             this.updateDecorations();
         });
+
+        vscode.workspace.onDidChangeConfiguration(e => {
+            if (e.affectsConfiguration('textanalysistoolpro.unmatchedLinesOpacity')) {
+                this.clearDecorations();
+                this.updateDecorations();
+            }
+        });
     }
 
     private clearDecorations() {
@@ -52,13 +59,17 @@ export class Decorator {
         const defaultBg = '#2d2d30';
         const defaultBgAlt = '#44475a';
 
+        const hasIncludeFilters = filters.some(f => !f.isExclude);
+
         for (let i = 0; i < this.activeEditor.document.lineCount; i++) {
             const line = this.activeEditor.document.lineAt(i);
             const lineText = line.text;
 
             let winningFg: string | undefined;
             let winningBg: string | undefined;
-            let matchInclude = false;
+            // If there are no include filters, everything is included by default unless excluded
+            let matchInclude = !hasIncludeFilters;
+            let matchExclude = false;
 
             for (const filter of filters) {
                 let match = false;
@@ -77,8 +88,10 @@ export class Decorator {
                     }
                 }
 
-                if (match && !filter.isExclude) {
-                    if (!matchInclude) {
+                if (match) {
+                    if (filter.isExclude) {
+                        matchExclude = true;
+                    } else if (!matchInclude) {
                         matchInclude = true;
                         winningFg = filter.foregroundColor;
                         winningBg = filter.backgroundColor;
@@ -86,34 +99,49 @@ export class Decorator {
                 }
             }
 
-            if (matchInclude) {
-                // Determine the final colors
-                const finalFg = winningFg || defaultFg;
-                const finalBg = winningBg || defaultBg;
+            if (matchInclude && !matchExclude) {
+                if (winningFg || winningBg) {
+                    // Determine the final colors
+                    const finalFg = winningFg || defaultFg;
+                    const finalBg = winningBg || defaultBg;
 
-                const key = `${finalFg}_${finalBg}`;
+                    const key = `${finalFg}_${finalBg}`;
 
+                    if (!dynamicDecorations.has(key)) {
+                        dynamicDecorations.set(key, []);
+                        if (!this.decorationTypes.has(key)) {
+                            this.decorationTypes.set(key, vscode.window.createTextEditorDecorationType({
+                                color: finalFg,
+                                backgroundColor: finalBg,
+                                isWholeLine: true
+                            }));
+                        }
+                    }
+
+                    dynamicDecorations.get(key)!.push({ range: line.range });
+                }
+            } else if (filters.length > 0) {
+                // Lines that don't match or are excluded appear faded when filters are unchecked
+                const config = vscode.workspace.getConfiguration('textanalysistoolpro');
+                const matchedOpacity = config.get<number>('unmatchedLinesOpacity', 0.4);
+                
+                const key = `faded_unmatched_${matchedOpacity}`;
                 if (!dynamicDecorations.has(key)) {
                     dynamicDecorations.set(key, []);
                     if (!this.decorationTypes.has(key)) {
                         this.decorationTypes.set(key, vscode.window.createTextEditorDecorationType({
-                            color: finalFg,
-                            backgroundColor: finalBg,
-                            isWholeLine: true
+                            opacity: matchedOpacity.toString()
                         }));
                     }
                 }
-
                 dynamicDecorations.get(key)!.push({ range: line.range });
             }
         }
 
-        // Apply dynamically constructed decorations
-        for (const [key, options] of dynamicDecorations) {
-            const type = this.decorationTypes.get(key);
-            if (type) {
-                this.activeEditor.setDecorations(type, options);
-            }
+        // Apply dynamically constructed decorations and clear old ones
+        for (const [key, type] of this.decorationTypes) {
+            const options = dynamicDecorations.get(key) || [];
+            this.activeEditor.setDecorations(type, options);
         }
     }
 }
