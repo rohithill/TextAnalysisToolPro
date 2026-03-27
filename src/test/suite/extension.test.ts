@@ -5,6 +5,7 @@ import * as path from 'path';
 import { FilterManager } from '../../managers/FilterManager';
 import { FilteredDocumentProvider } from '../../providers/FilteredDocumentProvider';
 import { FiltersWebviewProvider } from '../../providers/FiltersWebviewProvider';
+import { Decorator } from '../../Decorator';
 import { createFilter } from '../../models/Filter';
 import { filterManager as globalFilterManager } from '../../extension';
 suite('TextAnalysisToolPro Extension Test Suite', () => {
@@ -271,5 +272,242 @@ suite('TextAnalysisToolPro Extension Test Suite', () => {
             extensionCode.includes('retainContextWhenHidden: true'),
             "registerWebviewViewProvider should be called with retainContextWhenHidden: true to prevent state loss when switching tabs"
         );
+    });
+
+    test('Decorator handles non-matching lines correctly (unfiltered view)', async () => {
+        // We import the Decorator directly to test its internal logic without UI side effects.
+        
+        // Use a clean local filter manager
+        const localFilterManager = new FilterManager();
+        const testUri = 'file:///test-decorator.log';
+        localFilterManager.setActiveDocumentUri(testUri);
+        
+        // Add a single filter "YES"
+        const myFilter = createFilter("YES");
+        localFilterManager.addFilter(myFilter, testUri);
+
+        // Instantiate the Decorator
+        const decorator = new Decorator(localFilterManager);
+
+        // We will mock the activeEditor to track what the Decorator applies
+        const decoratedRanges: any[] = [];
+        const mockEditor = {
+            document: {
+                uri: { toString: () => testUri },
+                lineCount: 4,
+                lineAt: (i: number) => {
+                    const texts = ["Line 1 NO", "Line 2 YES", "Line 3 NO", "Line 4 YES"];
+                    return { text: texts[i], range: { start: { line: i }, end: { line: i } } };
+                }
+            },
+            setDecorations: (type: any, rangesOrOptions: any[]) => {
+                // Collect the ranges passed to setDecorations
+                for (const r of rangesOrOptions) {
+                    if (r.range) {
+                        decoratedRanges.push(r.range);
+                    } else {
+                        decoratedRanges.push(r);
+                    }
+                }
+            }
+        };
+
+        // Inject the mock editor using any typecasting
+        (decorator as any).activeEditor = mockEditor;
+
+        // Force an update
+        (decorator as any).updateDecorations();
+
+        // The mock document has matching lines at index 1 and 3
+        const decoratedLineIndices = decoratedRanges.map((r: any) => r.start.line);
+        
+        // Every line should be decorated now: YES lines with colors, NO lines with opacity
+        assert.ok(decoratedLineIndices.includes(1), "Line 1 (YES) should be decorated");
+        assert.ok(decoratedLineIndices.includes(3), "Line 3 (YES) should be decorated");
+        
+        assert.ok(decoratedLineIndices.includes(0), "Line 0 (NO) should be decorated (faded)");
+        assert.ok(decoratedLineIndices.includes(2), "Line 2 (NO) should be decorated (faded)");
+        
+        assert.strictEqual(decoratedLineIndices.length, 4, "All 4 lines should be decorated in total");
+    });
+
+    test('Decorator handles exclude-only filters without forcing default colors', async () => {
+        // This test ensures that when only exclude filters are used,
+        // the remaining (implicitly included) lines are NOT forcefully colored
+        // with the default text colors, leaving them with VS Code's native syntax highlighting.
+        
+        const localFilterManager = new FilterManager();
+        const testUri = 'file:///test-decorator-exclude.log';
+        localFilterManager.setActiveDocumentUri(testUri);
+        
+        // Add ONLY an exclude filter
+        const myFilter = createFilter("EXCLUDE");
+        myFilter.isExclude = true;
+        localFilterManager.addFilter(myFilter, testUri);
+
+        const decorator = new Decorator(localFilterManager);
+
+        const decoratedRanges: any[] = [];
+        const mockEditor = {
+            document: {
+                uri: { toString: () => testUri },
+                lineCount: 2,
+                lineAt: (i: number) => {
+                    const texts = ["Line 1 NORMAL", "Line 2 EXCLUDE"];
+                    return { text: texts[i], range: { start: { line: i }, end: { line: i } } };
+                }
+            },
+            setDecorations: (type: any, rangesOrOptions: any[]) => {
+                for (const r of rangesOrOptions) {
+                    if (r.range) {
+                        decoratedRanges.push({ line: r.range.start.line, type });
+                    } else {
+                        decoratedRanges.push({ line: r.start.line, type });
+                    }
+                }
+            }
+        };
+
+        (decorator as any).activeEditor = mockEditor;
+        (decorator as any).updateDecorations();
+
+        // Line 1 is NORMAL, Line 2 is EXCLUDED
+        // For line 1 (index 0), it should NOT be decorated heavily OR faded. Length of decorations for line 0 should be 0.
+        // For line 2 (index 1), it matches the exclude filter, so it SHOULD be faded.
+        
+        const decoratedIndices = decoratedRanges.map((r: any) => r.line);
+
+        assert.ok(!decoratedIndices.includes(0), "Line 0 (NORMAL) should receive absolutely NO decoration (keeps native syntax highlighting)");
+        assert.ok(decoratedIndices.includes(1), "Line 1 (EXCLUDE) should be decorated with the faded_unmatched opacity style");
+        assert.strictEqual(decoratedIndices.length, 1, "Only the excluded line should receive any decorator modification");
+    });
+
+    test('Decorator properly overrides include matches with exclude filters', async () => {
+        
+        const localFilterManager = new FilterManager();
+        const testUri = 'file:///test-decorator-override.log';
+        localFilterManager.setActiveDocumentUri(testUri);
+        
+        // Add an INCLUDE filter
+        const includeFilter = createFilter("TARGET");
+        localFilterManager.addFilter(includeFilter, testUri);
+
+        // Add an EXCLUDE filter
+        const excludeFilter = createFilter("IGNORE");
+        excludeFilter.isExclude = true;
+        localFilterManager.addFilter(excludeFilter, testUri);
+
+        const decorator = new Decorator(localFilterManager);
+
+        const decoratedLines: {line: number, key: string}[] = [];
+        const mockEditor = {
+            document: {
+                uri: { toString: () => testUri },
+                lineCount: 2,
+                lineAt: (i: number) => {
+                    const texts = ["Line 1 TARGET", "Line 2 TARGET IGNORE"];
+                    return { text: texts[i], range: { start: { line: i }, end: { line: i } } };
+                }
+            },
+            setDecorations: (type: any, rangesOrOptions: any[]) => {
+                let foundKey = "unknown";
+                for (const [k, v] of (decorator as any).decorationTypes.entries()) {
+                    if (v === type) { foundKey = k; break; }
+                }
+
+                for (const r of rangesOrOptions) {
+                    if (r.range) {
+                        decoratedLines.push({ line: r.range.start.line, key: foundKey });
+                    } else {
+                        decoratedLines.push({ line: r.start.line, key: foundKey });
+                    }
+                }
+            }
+        };
+
+        (decorator as any).activeEditor = mockEditor;
+        (decorator as any).updateDecorations();
+        
+        // Check what keys were applied to what lines
+        const line0Dec = decoratedLines.find(d => d.line === 0);
+        const line1Dec = decoratedLines.find(d => d.line === 1);
+
+        assert.ok(line0Dec, "Line 0 should be decorated");
+        assert.ok(!line0Dec?.key.includes("faded"), "Line 0 (TARGET) should receive the brightly colored decoration, NOT faded");
+        
+        assert.ok(line1Dec, "Line 1 should be decorated");
+        assert.ok(line1Dec?.key.includes("faded"), "Line 1 (TARGET IGNORE) should receive the faded_unmatched decoration because exclude properly overrides it");
+    });
+
+    test('Decorator clears zombie decorations from previous updates', async () => {
+        // This test simulates the issue where toggling from an unfiltered view
+        // to a filtered view leaves leftover "faded" decorations floating on lines
+        // that are now perfectly matched.
+        
+        const localFilterManager = new FilterManager();
+        const testUri = 'file:///test-decorator-zombie.log';
+        localFilterManager.setActiveDocumentUri(testUri);
+        
+        // Add an INCLUDE filter
+        const includeFilter = createFilter("TARGET");
+        localFilterManager.addFilter(includeFilter, testUri);
+
+        const decorator = new Decorator(localFilterManager);
+
+        // Keep track of what options are set for each type
+        const appliedDecorations = new Map<any, any[]>();
+
+        // Scenario 1: Unfiltered document (contains unmatched lines)
+        const mockEditor = {
+            document: {
+                uri: { toString: () => testUri },
+                lineCount: 2,
+                lineAt: (i: number) => {
+                    // Line 0 MATCHES, Line 1 DOES NOT
+                    const texts = ["Line 1 TARGET", "Line 2 MISS"];
+                    return { text: texts[i], range: { start: { line: i }, end: { line: i } } };
+                }
+            },
+            setDecorations: (type: any, rangesOrOptions: any[]) => {
+                appliedDecorations.set(type, rangesOrOptions);
+            }
+        };
+
+        (decorator as any).activeEditor = mockEditor;
+        (decorator as any).updateDecorations();
+        
+        // Find the faded decoration type
+        let fadedType: any = undefined;
+        let fadedKey = '';
+        for (const [key, type] of (decorator as any).decorationTypes.entries()) {
+            if (key.includes("faded")) {
+                fadedType = type;
+                fadedKey = key;
+                break;
+            }
+        }
+        
+        assert.ok(fadedType, "Faded decoration type should be created");
+        assert.ok(appliedDecorations.get(fadedType)?.length === 1, "Faded decoration should be applied to 1 line initially");
+
+        // Scenario 2: Filtered document (contains ONLY matched lines)
+        mockEditor.document.lineAt = (i: number) => {
+            // Now BOTH lines MATCH
+            const texts = ["Line 1 TARGET", "Line 2 ALSO TARGET"];
+            return { text: texts[i], range: { start: { line: i }, end: { line: i } } };
+        };
+
+        // Clear tracking before the second pass
+        appliedDecorations.clear();
+        
+        // Update again (simulating updating the webview state to Filtered)
+        (decorator as any).updateDecorations();
+
+        // The faded type should still exist in memory cache
+        assert.ok((decorator as any).decorationTypes.has(fadedKey), "Faded type should remain in memory cache");
+        
+        // BUT it MUST have been explicitly swept with an empty array!
+        assert.ok(appliedDecorations.has(fadedType), "setDecorations must be predictability called on the old faded type to clear zombies");
+        assert.strictEqual(appliedDecorations.get(fadedType)?.length, 0, "Zombie faded decoration options array MUST be strictly empty");
     });
 });

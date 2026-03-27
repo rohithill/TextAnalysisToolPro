@@ -58,13 +58,16 @@ export class FilteredDocumentProvider implements vscode.TextDocumentContentProvi
             return sourceText;
         }
 
+        // If there are no include filters, we implicitly include everything (and just exclude)
+        const hasIncludeFilters = filters.some(f => !f.isExclude);
+
         const matchedLines: string[] = [];
         const mappedIndices: number[] = [];
         const lines = sourceText.split(/\r?\n/);
 
         for (let i = 0; i < lines.length; i++) {
             const lineText = lines[i];
-            let matchInclude = false;
+            let matchInclude = !hasIncludeFilters;
             let matchExclude = false;
 
             for (const filter of filters) {

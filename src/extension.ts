@@ -6,6 +6,7 @@ import { FilteredDocumentProvider } from './providers/FilteredDocumentProvider';
 import { FilterEditorProvider } from './providers/FilterEditorProvider';
 
 export const filterManager = new FilterManager();
+export let globalDecorator: Decorator;
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('TextAnalysisToolPro is now active.');
@@ -32,7 +33,7 @@ export function activate(context: vscode.ExtensionContext) {
     );
 
     // Initialize Decorator
-    new Decorator(filterManager);
+    globalDecorator = new Decorator(filterManager);
 
     // Register Commands
     context.subscriptions.push(vscode.commands.registerCommand('textanalysistoolpro.addFilter', () => {
