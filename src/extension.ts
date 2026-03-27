@@ -14,12 +14,16 @@ export function activate(context: vscode.ExtensionContext) {
     // Initialize UI Providers
     const filtersWebviewProvider = new FiltersWebviewProvider(context.extensionUri, filterManager);
     context.subscriptions.push(
-        vscode.window.registerWebviewViewProvider(FiltersWebviewProvider.viewType, filtersWebviewProvider)
+        vscode.window.registerWebviewViewProvider(FiltersWebviewProvider.viewType, filtersWebviewProvider, {
+            webviewOptions: { retainContextWhenHidden: true }
+        })
     );
 
     const filterEditorProvider = new FilterEditorProvider(context.extensionUri, filterManager);
     context.subscriptions.push(
-        vscode.window.registerWebviewViewProvider(FilterEditorProvider.viewType, filterEditorProvider)
+        vscode.window.registerWebviewViewProvider(FilterEditorProvider.viewType, filterEditorProvider, {
+            webviewOptions: { retainContextWhenHidden: true }
+        })
     );
 
     const filteredDocProvider = new FilteredDocumentProvider(filterManager);
