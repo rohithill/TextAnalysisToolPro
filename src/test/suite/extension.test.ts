@@ -1,5 +1,7 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as path from 'path';
 import { FilterManager } from '../../managers/FilterManager';
 import { FilteredDocumentProvider } from '../../providers/FilteredDocumentProvider';
 import { FiltersWebviewProvider } from '../../providers/FiltersWebviewProvider';
@@ -261,5 +263,13 @@ suite('TextAnalysisToolPro Extension Test Suite', () => {
         assert.strictEqual(remaining.length, 1, 'Should be back to 1 group');
         assert.strictEqual(filterManager.getActiveGroupId(testUri), groupAId, 'Should fall back to group A');
     });
-});
+    test('Webviews should retain context when hidden', async () => {
+        const extensionFilePath = path.join(__dirname, '../../../src/extension.ts');
+        const extensionCode = fs.readFileSync(extensionFilePath, 'utf8');
 
+        assert.ok(
+            extensionCode.includes('retainContextWhenHidden: true'),
+            "registerWebviewViewProvider should be called with retainContextWhenHidden: true to prevent state loss when switching tabs"
+        );
+    });
+});
