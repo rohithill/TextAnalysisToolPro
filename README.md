@@ -3,7 +3,7 @@
 > A powerful VS Code extension inspired by [TextAnalysisTool.NET](https://textanalysistool.github.io/) — built for developers and engineers who need to make sense of large log files, traces, and any text-heavy output.
 
 ![VS Code](https://img.shields.io/badge/VS%20Code-%5E1.80-blue?logo=visual-studio-code)
-![Version](https://img.shields.io/badge/version-0.2.0-green)
+![Version](https://img.shields.io/badge/version-0.3.0-green)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
 ---
@@ -19,10 +19,10 @@ Everything is non-destructive: the original file is never touched. You work on a
 ## Features
 
 ### 🔍 Powerful Filtering
-- **Include & Exclude** filters — show exactly what you want, hide what you don't
+- **Include & Exclude** filters — highlight what you want, fade or hide what you don't
 - **Regular expressions** with full regex engine support
 - **Case-sensitive** matching when precision matters
-- Filters are applied simultaneously; lines matching any include filter (and no exclude filter) are shown
+- Filters are applied simultaneously; lines matching any include filter (and no exclude filter) are highlighted, while un-matched lines fade into the background.
 
 ### 🎨 Color Highlighting
 - Assign custom **foreground and background colors** to each filter
@@ -135,6 +135,7 @@ All commands are available via `Ctrl+Shift+P`:
 |---------|---------|-------------|
 | `textanalysistoolpro.defaultForegroundColor` | `#ffffff` | Default text color for new filters |
 | `textanalysistoolpro.defaultBackgroundColor` | `#44475a` | Default background color for new filters |
+| `textanalysistoolpro.unmatchedLinesOpacity` | `0.4` | Opacity (0.0 to 1.0) for lines that do not match any filter when in the full document view |
 
 ---
 
