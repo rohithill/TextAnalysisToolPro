@@ -39,6 +39,9 @@ export class FiltersWebviewProvider implements vscode.WebviewViewProvider {
         // Handle messages from the webview
         webviewView.webview.onDidReceiveMessage(async message => {
             switch (message.type) {
+                case 'analyzeCurrentFile':
+                    vscode.commands.executeCommand('textanalysistoolpro.analyzeCurrentFile');
+                    break;
                 case 'toggleFilter':
                     this._filterManager.toggleFilterEnable(message.id);
                     break;
@@ -175,6 +178,8 @@ export class FiltersWebviewProvider implements vscode.WebviewViewProvider {
             padding: 0;
             margin: 0;
             user-select: none;
+            position: relative;
+            min-height: 80px;
         }
 
         /* ── Group bar ──────────────────────────────────── */
@@ -268,9 +273,39 @@ export class FiltersWebviewProvider implements vscode.WebviewViewProvider {
             opacity: 0.6;
             font-style: italic;
         }
+
+        /* ── No-file placeholder ────────────────────────── */
+        #no-file-view {
+            display: none;
+            position: absolute;
+            inset: 0;
+            justify-content: center;
+            align-items: center;
+        }
+        #btn-analyze-current {
+            padding: 6px 14px;
+            font-size: 12px;
+            font-family: var(--vscode-font-family);
+            color: var(--vscode-button-foreground);
+            background: var(--vscode-button-background);
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            opacity: 0.9;
+            transition: opacity 0.15s;
+        }
+        #btn-analyze-current:hover {
+            opacity: 1;
+            background: var(--vscode-button-hoverBackground);
+        }
     </style>
 </head>
 <body>
+    <!-- No-file placeholder (shown when no filtered document is active) -->
+    <div id="no-file-view">
+        <button id="btn-analyze-current">Analyse Current File</button>
+    </div>
+
     <!-- Group bar -->
     <div id="group-bar">
         <div id="group-tabs"></div>
@@ -305,17 +340,36 @@ export class FiltersWebviewProvider implements vscode.WebviewViewProvider {
         const tbody = document.getElementById('filtersBody');
         const groupTabs = document.getElementById('group-tabs');
         const emptyHint = document.getElementById('empty-hint');
+        const noFileView = document.getElementById('no-file-view');
+        const groupBar = document.getElementById('group-bar');
+        const filtersTable = document.getElementById('filtersTable');
 
         let currentGroups = [];
         let currentActiveGroupId = null;
+
+        document.getElementById('btn-analyze-current').onclick = () =>
+            vscode.postMessage({ type: 'analyzeCurrentFile' });
+
+        function setNoFileMode(enabled) {
+            noFileView.style.display = enabled ? 'flex' : 'none';
+            groupBar.style.display = enabled ? 'none' : '';
+            filtersTable.style.display = enabled ? 'none' : '';
+            emptyHint.style.display = 'none';
+        }
 
         window.addEventListener('message', event => {
             const message = event.data;
             if (message.type === 'updateGroups') {
                 currentGroups = message.groups;
                 currentActiveGroupId = message.activeGroupId;
-                renderGroups(message.groups, message.activeGroupId);
-                renderFilters(message.filters);
+                // groups is empty when no filtered document is active
+                if (message.groups.length === 0 && message.filters.length === 0 && !message.activeGroupId) {
+                    setNoFileMode(true);
+                } else {
+                    setNoFileMode(false);
+                    renderGroups(message.groups, message.activeGroupId);
+                    renderFilters(message.filters);
+                }
             }
         });
 
