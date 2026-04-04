@@ -480,11 +480,6 @@
                     "group": "navigation@2"
                 },
                 {
-                    "command": "textanalysistoolpro.analyzeCurrentFile",
-                    "when": "view == filtersView",
-                    "group": "navigation@3"
-                },
-                {
                     "command": "textanalysistoolpro.importFilters",
                     "when": "view == filtersView",
                     "group": "navigation@4"
