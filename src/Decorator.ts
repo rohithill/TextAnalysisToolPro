@@ -4,6 +4,9 @@ import { FilterManager } from './managers/FilterManager';
 export class Decorator {
     private activeEditor: vscode.TextEditor | undefined;
     private decorationTypes: Map<string, vscode.TextEditorDecorationType> = new Map();
+    // Cursor highlight type is recreated after filter types so it has a higher
+    // internal VS Code decoration ID and always renders on top of filter backgrounds.
+    private cursorLineDecorationType: vscode.TextEditorDecorationType | undefined;
 
     constructor(private filterManager: FilterManager) {
         this.activeEditor = vscode.window.activeTextEditor;
@@ -12,6 +15,14 @@ export class Decorator {
             this.activeEditor = editor;
             if (editor) {
                 this.updateDecorations();
+            }
+        });
+
+        vscode.window.onDidChangeTextEditorSelection(event => {
+            if (this.activeEditor &&
+                event.textEditor.document.uri.toString() === this.activeEditor.document.uri.toString()) {
+                this.activeEditor = event.textEditor;
+                this.updateCursorLineHighlight();
             }
         });
 
@@ -27,11 +38,51 @@ export class Decorator {
         });
 
         vscode.workspace.onDidChangeConfiguration(e => {
-            if (e.affectsConfiguration('textanalysistoolpro.unmatchedLinesOpacity')) {
+            if (e.affectsConfiguration('textanalysistoolpro.unmatchedLinesOpacity') ||
+                e.affectsConfiguration('textanalysistoolpro.activeLineHighlightColor')) {
                 this.clearDecorations();
                 this.updateDecorations();
             }
         });
+
+        if (this.activeEditor) {
+            this.updateDecorations();
+        }
+    }
+
+    /**
+     * Dispose and recreate cursorLineDecorationType so it is always assigned a
+     * higher internal VS Code decoration ID than the filter decoration types
+     * created in updateDecorations(). Higher ID = rendered on top.
+     */
+    private recreateCursorLineDecorationType() {
+        if (this.activeEditor && this.cursorLineDecorationType) {
+            this.activeEditor.setDecorations(this.cursorLineDecorationType, []);
+        }
+        this.cursorLineDecorationType?.dispose();
+        // Use solid 6-digit hex — VS Code decoration renderer does not support
+        // 8-digit hex (#rrggbbaa) or rgba() for backgroundColor.
+        const config = vscode.workspace.getConfiguration('textanalysistoolpro');
+        const highlightColor = config.get<string>('activeLineHighlightColor', '#6996ff');
+        this.cursorLineDecorationType = vscode.window.createTextEditorDecorationType({
+            backgroundColor: highlightColor,
+            borderColor: highlightColor,
+            borderWidth: '1px',
+            borderStyle: 'solid',
+            isWholeLine: true,
+        });
+    }
+
+    private updateCursorLineHighlight() {
+        if (!this.activeEditor || !this.activeEditor.selection || !this.cursorLineDecorationType) { return; }
+        // Only highlight in the filtered view, not in regular source files.
+        if (this.activeEditor.document.uri.scheme !== 'textanalysistoolpro') {
+            this.activeEditor.setDecorations(this.cursorLineDecorationType, []);
+            return;
+        }
+        const activeLine = this.activeEditor.selection.active.line;
+        const lineRange = this.activeEditor.document.lineAt(activeLine).range;
+        this.activeEditor.setDecorations(this.cursorLineDecorationType, [{ range: lineRange }]);
     }
 
     private clearDecorations() {
@@ -49,15 +100,11 @@ export class Decorator {
         const uriString = this.activeEditor.document.uri.toString();
         const filters = this.filterManager.getFilters(uriString).filter(f => f.isEnabled);
 
-        // Instead of mapping decorations to individual pre-existing filter types,
-        // we map the EXACT winning foreground/background combination of the line 
-        // to a dynamically created DecorationType so that colors blend perfectly down the hierarchy.
+        // Map the EXACT winning fg/bg combination → DecorationType so colors blend perfectly.
         const dynamicDecorations: Map<string, vscode.DecorationOptions[]> = new Map();
 
-        // Define default fallback strings to check against "missing" xml
         const defaultFg = '#ffffff';
         const defaultBg = '#2d2d30';
-        const defaultBgAlt = '#44475a';
 
         const hasIncludeFilters = filters.some(f => !f.isExclude);
 
@@ -67,7 +114,6 @@ export class Decorator {
 
             let winningFg: string | undefined;
             let winningBg: string | undefined;
-            // If there are no include filters, everything is included by default unless excluded
             let matchInclude = !hasIncludeFilters;
             let matchExclude = false;
 
@@ -101,10 +147,8 @@ export class Decorator {
 
             if (matchInclude && !matchExclude) {
                 if (winningFg || winningBg) {
-                    // Determine the final colors
                     const finalFg = winningFg || defaultFg;
                     const finalBg = winningBg || defaultBg;
-
                     const key = `${finalFg}_${finalBg}`;
 
                     if (!dynamicDecorations.has(key)) {
@@ -117,14 +161,12 @@ export class Decorator {
                             }));
                         }
                     }
-
                     dynamicDecorations.get(key)!.push({ range: line.range });
                 }
             } else if (filters.length > 0) {
-                // Lines that don't match or are excluded appear faded when filters are unchecked
                 const config = vscode.workspace.getConfiguration('textanalysistoolpro');
                 const matchedOpacity = config.get<number>('unmatchedLinesOpacity', 0.4);
-                
+
                 const key = `faded_unmatched_${matchedOpacity}`;
                 if (!dynamicDecorations.has(key)) {
                     dynamicDecorations.set(key, []);
@@ -138,10 +180,15 @@ export class Decorator {
             }
         }
 
-        // Apply dynamically constructed decorations and clear old ones
+        // Apply filter decorations first.
         for (const [key, type] of this.decorationTypes) {
             const options = dynamicDecorations.get(key) || [];
             this.activeEditor.setDecorations(type, options);
         }
+
+        // Recreate cursor type AFTER all filter types so its internal ID is higher
+        // (higher ID = rendered on top in VS Code's decoration system).
+        this.recreateCursorLineDecorationType();
+        this.updateCursorLineHighlight();
     }
 }

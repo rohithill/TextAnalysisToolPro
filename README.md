@@ -136,6 +136,7 @@ All commands are available via `Ctrl+Shift+P`:
 | `textanalysistoolpro.defaultForegroundColor` | `#ffffff` | Default text color for new filters |
 | `textanalysistoolpro.defaultBackgroundColor` | `#44475a` | Default background color for new filters |
 | `textanalysistoolpro.unmatchedLinesOpacity` | `0.4` | Opacity (0.0 to 1.0) for lines that do not match any filter when in the full document view |
+| `textanalysistoolpro.activeLineHighlightColor` | `#6996ff` | Background color for the active (cursor) line in the filtered view. Must be a solid 6-digit hex color. |
 
 ---
 

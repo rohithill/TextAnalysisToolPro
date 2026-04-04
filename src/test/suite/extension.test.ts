@@ -510,4 +510,199 @@ suite('TextAnalysisToolPro Extension Test Suite', () => {
         assert.ok(appliedDecorations.has(fadedType), "setDecorations must be predictability called on the old faded type to clear zombies");
         assert.strictEqual(appliedDecorations.get(fadedType)?.length, 0, "Zombie faded decoration options array MUST be strictly empty");
     });
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // Cursor-line highlight — lessons learned (April 2026)
+    // ══════════════════════════════════════════════════════════════════════════
+    //
+    // BACKGROUND
+    // ----------
+    // In the filtered view (virtual document, scheme "textanalysistoolpro"),
+    // the native VS Code line-highlight (editor.lineHighlightBackground) is not
+    // visible — VS Code does not render it for read-only virtual documents in
+    // the same way as regular files.  The Decorator compensates by applying a
+    // TextEditorDecorationType to the active line on every cursor move.
+    //
+    // HOW VS CODE DECORATION RENDERING PRIORITY WORKS
+    // ------------------------------------------------
+    // Each TextEditorDecorationType receives a monotonically-increasing internal
+    // ID at creation time.  When multiple isWholeLine decorations overlap on
+    // the same line, the one with the HIGHEST internal ID wins the background-
+    // color battle (it is rendered "on top").
+    //
+    // Consequence: cursorLineDecorationType MUST be created (or RECREATED) AFTER
+    // all filter decoration types so that it has the highest ID.  We call
+    // recreateCursorLineDecorationType() at the END of updateDecorations(), after
+    // all filter types have been created, to guarantee this ordering.
+    //
+    // Note: the call ORDER of setDecorations() does NOT determine visual
+    // priority — only the creation order of the decoration TYPE matters.
+    //
+    // WHAT THESE UNIT TESTS CAN PROVE
+    // --------------------------------
+    //  ✔  setDecorations() is called with the cursor type (code runs)
+    //  ✔  Only the active cursor line is included in the range
+    //  ✔  The cursor type is the LAST setDecorations call (render-order rule)
+    //  ✔  The scheme guard prevents highlight being applied to non-filtered files
+    //
+    // WHAT THESE UNIT TESTS CANNOT PROVE — visual verification required
+    // -----------------------------------------------------------------
+    //  ✘  Whether a colour string is actually parsed by VS Code's Chromium renderer.
+    //     CRITICAL FINDING: VS Code's decoration backgroundColor silently ignores
+    //     colour formats it does not support — no error is thrown, setDecorations
+    //     succeeds, but nothing renders.
+    //
+    //     Confirmed WORKING  : solid 6-digit hex e.g. '#4a4f6a'
+    //     Confirmed BROKEN   : 8-digit hex with alpha e.g. '#ffffff22'
+    //     Confirmed BROKEN   : rgba() strings e.g. 'rgba(255,255,255,0.15)'
+    //     Unreliable         : new vscode.ThemeColor('editor.lineHighlightBackground')
+    //                          — transparent / near-invisible in most dark themes
+    //
+    //  ✘  Whether the decoration appears above or below other decorations when
+    //     viewed in the real Chromium-rendered editor (depends on internal IDs,
+    //     not testable with a mock).
+    //
+    //  ✘  Whether the scheme guard correctly clears the decoration when switching
+    //     back to a normal file in the real editor (the mock never changes tabs).
+    //
+    // STALE EDITOR REFERENCE BUG (fixed)
+    // -----------------------------------
+    // When FilteredDocumentProvider fires onDidChange, VS Code may create a new
+    // TextEditor object for the same tab.  The old reference stored in
+    // this.activeEditor would no longer match event.textEditor via ===.
+    // Fixed by comparing document URIs instead of object identity in the
+    // onDidChangeTextEditorSelection handler, and refreshing the reference on
+    // each match.
+    //
+    // HOW TO VISUALLY VERIFY (manual regression check)
+    // -------------------------------------------------
+    // 1. Open any file via "Analyze Current File".
+    // 2. Move the cursor — the active line must show the highlight colour
+    //    (#4a4f6a background + #a0b4e8 border).
+    // 3. Switch to a regular (non-filtered) source file — no highlight must appear.
+    // 4. Switch back to the filtered view — highlight reappears on cursor move.
+    // ══════════════════════════════════════════════════════════════════════════
+
+    test('Decorator applies cursor-line highlight to the active line', async () => {
+        // This test verifies CODE LOGIC only — see the notes above for what it
+        // cannot catch (colour rendering, real Chromium rendering priority, etc.)
+
+        const localFilterManager = new FilterManager();
+        // Use the filtered-view scheme so the scheme guard in updateCursorLineHighlight
+        // allows the decoration to be applied.
+        const testUri = 'textanalysistoolpro:/%5BFiltered%5D%20test-cursor.log?file%3A%2F%2F%2Ftest-cursor.log';
+        localFilterManager.setActiveDocumentUri(testUri);
+
+        // Add a filter so filter decoration types are also created, letting us
+        // verify that the cursor type is still created/applied LAST.
+        const myFilter = createFilter('MATCH');
+        localFilterManager.addFilter(myFilter, testUri);
+
+        const decorator = new Decorator(localFilterManager);
+
+        // Record every setDecorations call in call order.
+        const callLog: { type: any; ranges: any[] }[] = [];
+
+        const CURSOR_LINE = 1;
+
+        const mockEditor = {
+            document: {
+                // URI must use the textanalysistoolpro scheme so the scheme guard passes.
+                uri: { toString: () => testUri, scheme: 'textanalysistoolpro' },
+                lineCount: 3,
+                lineAt: (i: number) => {
+                    const texts = ['Line 0 MATCH', 'Line 1 MATCH', 'Line 2 no match'];
+                    return { text: texts[i], range: { start: { line: i }, end: { line: i } } };
+                }
+            },
+            selection: {
+                active: { line: CURSOR_LINE }
+            },
+            setDecorations: (type: any, rangesOrOptions: any[]) => {
+                callLog.push({ type, ranges: rangesOrOptions });
+            }
+        };
+
+        (decorator as any).activeEditor = mockEditor;
+        (decorator as any).updateDecorations();
+
+        // Capture cursorLineDecorationType AFTER updateDecorations() because
+        // recreateCursorLineDecorationType() is called inside updateDecorations()
+        // and replaces the instance.
+        const cursorType = (decorator as any).cursorLineDecorationType;
+
+        // ── Assertion 1: cursorLineDecorationType must have been called ────────
+        // Proves the code path runs and reaches setDecorations.
+        const cursorCalls = callLog.filter(c => c.type === cursorType);
+        assert.ok(cursorCalls.length > 0, 'cursorLineDecorationType must be passed to setDecorations');
+
+        // ── Assertion 2: only the active cursor line is highlighted ───────────
+        // Proves the line-number logic reads selection.active.line correctly.
+        const lastCursorCall = cursorCalls[cursorCalls.length - 1];
+        const cursorLines = lastCursorCall.ranges.map((r: any) =>
+            r.range ? r.range.start.line : r.start.line
+        );
+        assert.deepStrictEqual(cursorLines, [CURSOR_LINE],
+            `Cursor highlight must cover exactly line ${CURSOR_LINE}`);
+
+        // ── Assertion 3: cursor type is the LAST setDecorations call ──────────
+        // Proves that recreateCursorLineDecorationType() runs AFTER all filter
+        // types are created, so cursorLineDecorationType gets the highest
+        // internal ID and renders on top in VS Code's decoration system.
+        //
+        // NOTE: this assertion verifies CALL ORDER of setDecorations, which the
+        // mock can observe.  However, actual visual rendering priority in VS Code
+        // is determined by CREATION ORDER of the decoration TYPE (internal ID),
+        // not call order — these happen to align here because we recreate the
+        // type at the end of updateDecorations(), but the property that truly
+        // matters (highest internal ID) is not assertable via a mock.
+        const lastCall = callLog[callLog.length - 1];
+        assert.strictEqual(lastCall.type, cursorType,
+            'cursorLineDecorationType must be the last setDecorations call ' +
+            '(correlates with having the highest internal decoration ID, which ' +
+            'determines visual rendering priority over filter backgrounds)');
+    });
+
+    test('Decorator does NOT apply cursor-line highlight to non-filtered files', async () => {
+        // Verifies the scheme guard: the highlight must be cleared (empty ranges)
+        // when activeEditor is a regular file, not the filtered view.
+
+        const localFilterManager = new FilterManager();
+        const regularUri = 'file:///some/regular/source.ts'; // NOT textanalysistoolpro scheme
+        localFilterManager.setActiveDocumentUri(regularUri);
+
+        const decorator = new Decorator(localFilterManager);
+
+        const callLog: { type: any; ranges: any[] }[] = [];
+
+        const mockEditor = {
+            document: {
+                uri: { toString: () => regularUri, scheme: 'file' },
+                lineCount: 2,
+                lineAt: (i: number) => ({ text: `Line ${i}`, range: { start: { line: i }, end: { line: i } } })
+            },
+            selection: { active: { line: 0 } },
+            setDecorations: (type: any, rangesOrOptions: any[]) => {
+                callLog.push({ type, ranges: rangesOrOptions });
+            }
+        };
+
+        (decorator as any).activeEditor = mockEditor;
+        (decorator as any).updateDecorations();
+
+        const cursorType = (decorator as any).cursorLineDecorationType;
+        const cursorCalls = callLog.filter(c => c.type === cursorType);
+
+        // The cursor type must be called (to clear any previous decoration),
+        // but the ranges array must be EMPTY — no highlight on regular files.
+        if (cursorCalls.length > 0) {
+            const lastCursorCall = cursorCalls[cursorCalls.length - 1];
+            assert.strictEqual(lastCursorCall.ranges.length, 0,
+                'Cursor-line highlight must not be applied to regular (non-filtered) files — ' +
+                'the scheme guard in updateCursorLineHighlight() should clear the decoration');
+        }
+        // If cursorType was never called at all that is also acceptable —
+        // it means the scheme guard returned early before setDecorations.
+    });
 });
+

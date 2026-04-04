@@ -36,6 +36,11 @@
                     "description": "Opacity (0.0 to 1.0) for lines that do not match any filter when in the full document view.",
                     "minimum": 0,
                     "maximum": 1
+                },
+                "textanalysistoolpro.activeLineHighlightColor": {
+                    "type": "string",
+                    "default": "#6996ff",
+                    "description": "Background color for the active (cursor) line in the filtered view. Must be a solid 6-digit hex color (e.g. #6996ff). Note: 8-digit hex and rgba() are NOT supported by VS Code's decoration renderer and will silently produce no visible result."
                 }
             }
         },
