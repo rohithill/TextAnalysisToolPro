@@ -290,6 +290,15 @@ export class FilterManager {
         }
     }
 
+    public toggleAllFilters(enable: boolean, uri?: string) {
+        const targetUri = uri || this.activeDocumentUri;
+        if (!targetUri) return;
+
+        const filters = this.getFilters(targetUri);
+        filters.forEach(f => f.isEnabled = enable);
+        this.onDidChangeFiltersEmitter.fire(targetUri);
+    }
+
     public moveFilter(oldIndex: number, newIndex: number, uri?: string) {
         const targetUri = uri || this.activeDocumentUri;
         if (!targetUri) return;

@@ -45,6 +45,9 @@ export class FiltersWebviewProvider implements vscode.WebviewViewProvider {
                 case 'toggleFilter':
                     this._filterManager.toggleFilterEnable(message.id);
                     break;
+                case 'toggleAllFilters':
+                    this._filterManager.toggleAllFilters(message.enable);
+                    break;
                 case 'removeFilter':
                     this._filterManager.removeFilter(message.id);
                     break;
@@ -321,7 +324,7 @@ export class FiltersWebviewProvider implements vscode.WebviewViewProvider {
     <table id="filtersTable">
         <thead>
             <tr>
-                <th style="width: 24px;"></th>
+                <th style="width: 24px;"><input type="checkbox" id="selectAllCheckbox" title="Toggle all filters"></th>
                 <th style="width: 24px;">Ch</th>
                 <th style="width: 80px;">Modifiers</th>
                 <th style="min-width: 100px;">Pattern</th>
@@ -343,12 +346,19 @@ export class FiltersWebviewProvider implements vscode.WebviewViewProvider {
         const noFileView = document.getElementById('no-file-view');
         const groupBar = document.getElementById('group-bar');
         const filtersTable = document.getElementById('filtersTable');
+        const selectAllCheckbox = document.getElementById('selectAllCheckbox');
 
         let currentGroups = [];
         let currentActiveGroupId = null;
 
         document.getElementById('btn-analyze-current').onclick = () =>
             vscode.postMessage({ type: 'analyzeCurrentFile' });
+
+        if (selectAllCheckbox) {
+            selectAllCheckbox.onchange = (e) => {
+                vscode.postMessage({ type: 'toggleAllFilters', enable: e.target.checked });
+            };
+        }
 
         function setNoFileMode(enabled) {
             noFileView.style.display = enabled ? 'flex' : 'none';
@@ -415,9 +425,22 @@ export class FiltersWebviewProvider implements vscode.WebviewViewProvider {
 
             if (filters.length === 0) {
                 emptyHint.style.display = 'block';
+                if (selectAllCheckbox) {
+                    selectAllCheckbox.checked = false;
+                    selectAllCheckbox.indeterminate = false;
+                    selectAllCheckbox.disabled = true;
+                }
                 return;
             }
             emptyHint.style.display = 'none';
+
+            if (selectAllCheckbox) {
+                const allEnabled = filters.every(f => f.isEnabled);
+                const someEnabled = filters.some(f => f.isEnabled);
+                selectAllCheckbox.checked = allEnabled;
+                selectAllCheckbox.indeterminate = someEnabled && !allEnabled;
+                selectAllCheckbox.disabled = false;
+            }
 
             filters.forEach((f, index) => {
                 const tr = document.createElement('tr');

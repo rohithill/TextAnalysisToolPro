@@ -264,6 +264,30 @@ suite('TextAnalysisToolPro Extension Test Suite', () => {
         assert.strictEqual(remaining.length, 1, 'Should be back to 1 group');
         assert.strictEqual(filterManager.getActiveGroupId(testUri), groupAId, 'Should fall back to group A');
     });
+
+    test('FilterManager toggleAllFilters Test', () => {
+        const filterManager = new FilterManager();
+        const testUri = 'textanalysistoolpro://%5BFiltered%5D%20toggleall.log?file:///toggleall.log';
+        filterManager.setActiveDocumentUri(testUri);
+
+        const f1 = createFilter('ONE');
+        const f2 = createFilter('TWO');
+        f1.isEnabled = false;
+        f2.isEnabled = true; // mixed state
+        filterManager.addFilter(f1, testUri);
+        filterManager.addFilter(f2, testUri);
+
+        // Turn all on
+        filterManager.toggleAllFilters(true, testUri);
+        const filters = filterManager.getFilters(testUri);
+        assert.strictEqual(filters[0].isEnabled, true, 'Filter 1 should be enabled');
+        assert.strictEqual(filters[1].isEnabled, true, 'Filter 2 should be enabled');
+
+        // Turn all off
+        filterManager.toggleAllFilters(false, testUri);
+        assert.strictEqual(filters[0].isEnabled, false, 'Filter 1 should be disabled');
+        assert.strictEqual(filters[1].isEnabled, false, 'Filter 2 should be disabled');
+    });
     test('Webviews should retain context when hidden', async () => {
         const extensionFilePath = path.join(__dirname, '../../../src/extension.ts');
         const extensionCode = fs.readFileSync(extensionFilePath, 'utf8');
@@ -276,12 +300,12 @@ suite('TextAnalysisToolPro Extension Test Suite', () => {
 
     test('Decorator handles non-matching lines correctly (unfiltered view)', async () => {
         // We import the Decorator directly to test its internal logic without UI side effects.
-        
+
         // Use a clean local filter manager
         const localFilterManager = new FilterManager();
         const testUri = 'file:///test-decorator.log';
         localFilterManager.setActiveDocumentUri(testUri);
-        
+
         // Add a single filter "YES"
         const myFilter = createFilter("YES");
         localFilterManager.addFilter(myFilter, testUri);
@@ -320,14 +344,14 @@ suite('TextAnalysisToolPro Extension Test Suite', () => {
 
         // The mock document has matching lines at index 1 and 3
         const decoratedLineIndices = decoratedRanges.map((r: any) => r.start.line);
-        
+
         // Every line should be decorated now: YES lines with colors, NO lines with opacity
         assert.ok(decoratedLineIndices.includes(1), "Line 1 (YES) should be decorated");
         assert.ok(decoratedLineIndices.includes(3), "Line 3 (YES) should be decorated");
-        
+
         assert.ok(decoratedLineIndices.includes(0), "Line 0 (NO) should be decorated (faded)");
         assert.ok(decoratedLineIndices.includes(2), "Line 2 (NO) should be decorated (faded)");
-        
+
         assert.strictEqual(decoratedLineIndices.length, 4, "All 4 lines should be decorated in total");
     });
 
@@ -335,11 +359,11 @@ suite('TextAnalysisToolPro Extension Test Suite', () => {
         // This test ensures that when only exclude filters are used,
         // the remaining (implicitly included) lines are NOT forcefully colored
         // with the default text colors, leaving them with VS Code's native syntax highlighting.
-        
+
         const localFilterManager = new FilterManager();
         const testUri = 'file:///test-decorator-exclude.log';
         localFilterManager.setActiveDocumentUri(testUri);
-        
+
         // Add ONLY an exclude filter
         const myFilter = createFilter("EXCLUDE");
         myFilter.isExclude = true;
@@ -374,7 +398,7 @@ suite('TextAnalysisToolPro Extension Test Suite', () => {
         // Line 1 is NORMAL, Line 2 is EXCLUDED
         // For line 1 (index 0), it should NOT be decorated heavily OR faded. Length of decorations for line 0 should be 0.
         // For line 2 (index 1), it matches the exclude filter, so it SHOULD be faded.
-        
+
         const decoratedIndices = decoratedRanges.map((r: any) => r.line);
 
         assert.ok(!decoratedIndices.includes(0), "Line 0 (NORMAL) should receive absolutely NO decoration (keeps native syntax highlighting)");
@@ -383,11 +407,11 @@ suite('TextAnalysisToolPro Extension Test Suite', () => {
     });
 
     test('Decorator properly overrides include matches with exclude filters', async () => {
-        
+
         const localFilterManager = new FilterManager();
         const testUri = 'file:///test-decorator-override.log';
         localFilterManager.setActiveDocumentUri(testUri);
-        
+
         // Add an INCLUDE filter
         const includeFilter = createFilter("TARGET");
         localFilterManager.addFilter(includeFilter, testUri);
@@ -399,7 +423,7 @@ suite('TextAnalysisToolPro Extension Test Suite', () => {
 
         const decorator = new Decorator(localFilterManager);
 
-        const decoratedLines: {line: number, key: string}[] = [];
+        const decoratedLines: { line: number, key: string }[] = [];
         const mockEditor = {
             document: {
                 uri: { toString: () => testUri },
@@ -427,14 +451,14 @@ suite('TextAnalysisToolPro Extension Test Suite', () => {
 
         (decorator as any).activeEditor = mockEditor;
         (decorator as any).updateDecorations();
-        
+
         // Check what keys were applied to what lines
         const line0Dec = decoratedLines.find(d => d.line === 0);
         const line1Dec = decoratedLines.find(d => d.line === 1);
 
         assert.ok(line0Dec, "Line 0 should be decorated");
         assert.ok(!line0Dec?.key.includes("faded"), "Line 0 (TARGET) should receive the brightly colored decoration, NOT faded");
-        
+
         assert.ok(line1Dec, "Line 1 should be decorated");
         assert.ok(line1Dec?.key.includes("faded"), "Line 1 (TARGET IGNORE) should receive the faded_unmatched decoration because exclude properly overrides it");
     });
@@ -443,11 +467,11 @@ suite('TextAnalysisToolPro Extension Test Suite', () => {
         // This test simulates the issue where toggling from an unfiltered view
         // to a filtered view leaves leftover "faded" decorations floating on lines
         // that are now perfectly matched.
-        
+
         const localFilterManager = new FilterManager();
         const testUri = 'file:///test-decorator-zombie.log';
         localFilterManager.setActiveDocumentUri(testUri);
-        
+
         // Add an INCLUDE filter
         const includeFilter = createFilter("TARGET");
         localFilterManager.addFilter(includeFilter, testUri);
@@ -475,7 +499,7 @@ suite('TextAnalysisToolPro Extension Test Suite', () => {
 
         (decorator as any).activeEditor = mockEditor;
         (decorator as any).updateDecorations();
-        
+
         // Find the faded decoration type
         let fadedType: any = undefined;
         let fadedKey = '';
@@ -486,7 +510,7 @@ suite('TextAnalysisToolPro Extension Test Suite', () => {
                 break;
             }
         }
-        
+
         assert.ok(fadedType, "Faded decoration type should be created");
         assert.ok(appliedDecorations.get(fadedType)?.length === 1, "Faded decoration should be applied to 1 line initially");
 
@@ -499,13 +523,13 @@ suite('TextAnalysisToolPro Extension Test Suite', () => {
 
         // Clear tracking before the second pass
         appliedDecorations.clear();
-        
+
         // Update again (simulating updating the webview state to Filtered)
         (decorator as any).updateDecorations();
 
         // The faded type should still exist in memory cache
         assert.ok((decorator as any).decorationTypes.has(fadedKey), "Faded type should remain in memory cache");
-        
+
         // BUT it MUST have been explicitly swept with an empty array!
         assert.ok(appliedDecorations.has(fadedType), "setDecorations must be predictability called on the old faded type to clear zombies");
         assert.strictEqual(appliedDecorations.get(fadedType)?.length, 0, "Zombie faded decoration options array MUST be strictly empty");
