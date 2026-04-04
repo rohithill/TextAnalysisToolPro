@@ -3,7 +3,7 @@
 > A powerful VS Code extension inspired by [TextAnalysisTool.NET](https://textanalysistool.github.io/) — built for developers and engineers who need to make sense of large log files, traces, and any text-heavy output.
 
 ![VS Code](https://img.shields.io/badge/VS%20Code-%5E1.80-blue?logo=visual-studio-code)
-![Version](https://img.shields.io/badge/version-0.3.0-green)
+![Version](https://img.shields.io/badge/version-0.5.0-green)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
 ---
