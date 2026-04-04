@@ -41,6 +41,11 @@
                     "type": "string",
                     "default": "#6996ff",
                     "description": "Background color for the active (cursor) line in the filtered view. Must be a solid 6-digit hex color (e.g. #6996ff). Note: 8-digit hex and rgba() are NOT supported by VS Code's decoration renderer and will silently produce no visible result."
+                },
+                "textanalysistoolpro.autoLoadFilters": {
+                    "type": "object",
+                    "default": {},
+                    "description": "Auto-load filters from .tat files when a file is opened for analysis. Provide a JSON object mapping group names (keys) to absolute or workspace-relative file paths (values)."
                 }
             }
         },

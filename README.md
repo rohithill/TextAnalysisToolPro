@@ -40,7 +40,7 @@ Everything is non-destructive: the original file is never touched. You work on a
 - Dedicated sidebar panel listing all filters in the active group
 - See **hit counts** (how many lines each filter matches) updated live
 - Drag-and-drop to **reorder** filters
-- Toggle individual filters on/off with a checkbox
+- Toggle individual filters on/off or use the **Select All / Deselect All** checkbox in the table header to toggle all simultaneously
 - Double-click any row to jump straight to the editor for that filter
 
 ### ✏️ Filter Editor
@@ -53,10 +53,11 @@ Everything is non-destructive: the original file is never touched. You work on a
 - Press a filter's letter key (e.g. `a`, `b`, `c`) inside the Filtered View to jump to the **next match** for that filter
 - `Shift+<letter>` to jump to the **previous match**
 
-### 💾 Import & Export (`.tat` format)
+### 💾 Import, Export & Auto-Load (`.tat` format)
 - Fully compatible with **TextAnalysisTool.NET** `.tat` filter files
 - Import a `.tat` file to load a saved set of filters into the active group
 - Export the current group's filters to share with your team
+- Auto-load filters automatically without manual importing by configuring `.tat` files in the `textanalysistoolpro.autoLoadFilters` setting
 
 ---
 
@@ -137,6 +138,7 @@ All commands are available via `Ctrl+Shift+P`:
 | `textanalysistoolpro.defaultBackgroundColor` | `#44475a` | Default background color for new filters |
 | `textanalysistoolpro.unmatchedLinesOpacity` | `0.4` | Opacity (0.0 to 1.0) for lines that do not match any filter when in the full document view |
 | `textanalysistoolpro.activeLineHighlightColor` | `#6996ff` | Background color for the active (cursor) line in the filtered view. Must be a solid 6-digit hex color. |
+| `textanalysistoolpro.autoLoadFilters` | `{}` | JSON object mapping group names (keys) to absolute or workspace-relative `.tat` file paths (values) to load automatically when opening files for analysis. |
 
 ---
 

@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { Filter, FilterGroup, createGroup } from '../models/Filter';
 
 export class FilterManager {
@@ -376,6 +377,116 @@ export class FilterManager {
     // Import / Export (operates on the active group)
     // -------------------------------------------------------------------------
 
+    public parseFiltersXml(xmlStr: string): Filter[] {
+        const loadedFilters: Filter[] = [];
+        const regex = /<filter\s+([^>]+)\/?>/gi;
+        let match;
+
+        while ((match = regex.exec(xmlStr)) !== null) {
+            const attrs = match[1];
+
+            const getAttr = (name: string) => {
+                const attrMatch = new RegExp(`\\b${name}=(["'])([^"']*)\\1`, 'i').exec(attrs);
+                return attrMatch ? this.unescapeXml(attrMatch[2]) : undefined;
+            };
+
+            const text = getAttr('text') || '';
+            if (!text) continue;
+
+            const isEnabled = getAttr('enabled') === 'y';
+            const isExclude = getAttr('excluding') === 'y';
+            const isRegex = getAttr('regex') === 'y';
+            const isMatchCase = getAttr('case_sensitive') === 'y';
+            const description = getAttr('description') || '';
+
+            const config = vscode.workspace.getConfiguration('textanalysistoolpro');
+            const defaultFore = config.get<string>('defaultForegroundColor', '#ffffff');
+            const defaultBack = config.get<string>('defaultBackgroundColor', '#44475a');
+
+            const foreColorRaw = getAttr('foreColor');
+            const foreColor = foreColorRaw ? `#${foreColorRaw}` : defaultFore;
+
+            const backColorRaw = getAttr('backColor');
+            const backColor = backColorRaw ? `#${backColorRaw}` : defaultBack;
+
+            loadedFilters.push({
+                id: Math.random().toString(36).substring(2, 9),
+                text,
+                isEnabled,
+                isExclude,
+                isRegex,
+                isMatchCase,
+                description,
+                foregroundColor: foreColor,
+                backgroundColor: backColor
+            });
+        }
+
+        // Assign letters incrementally
+        loadedFilters.forEach((f, index) => {
+            if (index < 26) {
+                f.letter = String.fromCharCode(97 + index);
+            }
+        });
+
+        return loadedFilters;
+    }
+
+    public async loadAutoFilters(uri: string) {
+        const groups = this.groupsByUri.get(uri) || [];
+        if (groups.length > 1 || (groups.length === 1 && groups[0].filters.length > 0)) {
+            return;
+        }
+
+        const config = vscode.workspace.getConfiguration('textanalysistoolpro');
+        const autoLoadFilters = config.get<Record<string, string>>('autoLoadFilters', {});
+        
+        let loadedAny = false;
+        
+        for (const [groupName, filePath] of Object.entries(autoLoadFilters)) {
+            try {
+                let fileUri = vscode.Uri.file(filePath);
+                
+                if (!path.isAbsolute(filePath)) {
+                    const workspaceFolders = vscode.workspace.workspaceFolders;
+                    if (workspaceFolders && workspaceFolders.length > 0) {
+                        fileUri = vscode.Uri.joinPath(workspaceFolders[0].uri, filePath);
+                    }
+                }
+                
+                try {
+                    await vscode.workspace.fs.stat(fileUri);
+                } catch (statError) {
+                    vscode.window.showWarningMessage(`TextAnalysisToolPro: Auto-configured filter file not found for group "${groupName}": ${filePath}`);
+                    console.warn(`Auto-configured filter file missing: ${fileUri.toString()}`);
+                    continue;
+                }
+                
+                const data = await vscode.workspace.fs.readFile(fileUri);
+                const xmlStr = data.toString();
+                const loadedFilters = this.parseFiltersXml(xmlStr);
+                
+                if (loadedFilters.length > 0) {
+                    const newGroup = this.addGroup(groupName, uri);
+                    newGroup.filters = loadedFilters;
+                    loadedAny = true;
+                }
+            } catch (e: any) {
+                const errorMsg = e && e.message ? e.message : String(e);
+                vscode.window.showWarningMessage(`TextAnalysisToolPro: Failed to read filter file "${filePath}" for group "${groupName}". Error: ${errorMsg}`);
+                console.error(`Failed to load auto-configured filter file ${filePath}:`, e);
+            }
+        }
+        
+        if (loadedAny) {
+            const groups = this.groupsByUri.get(uri) || [];
+            if (groups.length > 1 && groups[0].name === 'unnamed_1' && groups[0].filters.length === 0) {
+                this.removeGroup(groups[0].id, uri);
+            }
+            this.onDidChangeFiltersEmitter.fire(uri);
+        }
+    }
+
     public async importFilters() {
         if (!this.activeDocumentUri) {
             vscode.window.showWarningMessage('Please focus a Filtered View tab to import filters into.');
@@ -391,56 +502,7 @@ export class FilterManager {
                 const data = await vscode.workspace.fs.readFile(uris[0]);
                 const xmlStr = data.toString();
 
-                const loadedFilters: Filter[] = [];
-                const regex = /<filter\s+([^>]+)\/?>/gi;
-                let match;
-
-                while ((match = regex.exec(xmlStr)) !== null) {
-                    const attrs = match[1];
-
-                    const getAttr = (name: string) => {
-                        const attrMatch = new RegExp(`\\b${name}=(["'])([^"']*)\\1`, 'i').exec(attrs);
-                        return attrMatch ? this.unescapeXml(attrMatch[2]) : undefined;
-                    };
-
-                    const text = getAttr('text') || '';
-                    if (!text) continue;
-
-                    const isEnabled = getAttr('enabled') === 'y';
-                    const isExclude = getAttr('excluding') === 'y';
-                    const isRegex = getAttr('regex') === 'y';
-                    const isMatchCase = getAttr('case_sensitive') === 'y';
-                    const description = getAttr('description') || '';
-
-                    const config = vscode.workspace.getConfiguration('textanalysistoolpro');
-                    const defaultFore = config.get<string>('defaultForegroundColor', '#ffffff');
-                    const defaultBack = config.get<string>('defaultBackgroundColor', '#44475a');
-
-                    const foreColorRaw = getAttr('foreColor');
-                    const foreColor = foreColorRaw ? `#${foreColorRaw}` : defaultFore;
-
-                    const backColorRaw = getAttr('backColor');
-                    const backColor = backColorRaw ? `#${backColorRaw}` : defaultBack;
-
-                    loadedFilters.push({
-                        id: Math.random().toString(36).substring(2, 9),
-                        text,
-                        isEnabled,
-                        isExclude,
-                        isRegex,
-                        isMatchCase,
-                        description,
-                        foregroundColor: foreColor,
-                        backgroundColor: backColor
-                    });
-                }
-
-                // Assign letters incrementally
-                loadedFilters.forEach((f, index) => {
-                    if (index < 26) {
-                        f.letter = String.fromCharCode(97 + index);
-                    }
-                });
+                const loadedFilters = this.parseFiltersXml(xmlStr);
 
                 // Replace the active group's filters
                 const group = this.getActiveGroup(this.activeDocumentUri);

@@ -124,6 +124,8 @@ After any source change, the VS Code **Extension Development Host** must be relo
 | `textanalysistoolpro.defaultForegroundColor` | `#ffffff` | Default text colour for new filters |
 | `textanalysistoolpro.defaultBackgroundColor` | `#44475a` | Default background colour for new filters |
 | `textanalysistoolpro.unmatchedLinesOpacity` | `0.4` | Opacity for faded lines in full-document view |
+| `textanalysistoolpro.activeLineHighlightColor` | `#6996ff` | Background color for the active cursor line |
+| `textanalysistoolpro.autoLoadFilters` | `{}` | JSON map of group names to `.tat` file paths applied on open |
 
 ---
 

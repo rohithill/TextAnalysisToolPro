@@ -230,6 +230,7 @@ export function activate(context: vscode.ExtensionContext) {
 
         // Set this as the active document so any new filters apply to it immediately
         filterManager.setActiveDocumentUri(virtualUri.toString());
+        await filterManager.loadAutoFilters(virtualUri.toString());
     }
 
     context.subscriptions.push(vscode.commands.registerCommand('textanalysistoolpro.goToNextMatch', (letter: string) => {

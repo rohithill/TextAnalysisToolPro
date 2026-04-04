@@ -288,6 +288,36 @@ suite('TextAnalysisToolPro Extension Test Suite', () => {
         assert.strictEqual(filters[0].isEnabled, false, 'Filter 1 should be disabled');
         assert.strictEqual(filters[1].isEnabled, false, 'Filter 2 should be disabled');
     });
+
+    test('FilterManager parseFiltersXml Test', () => {
+        const filterManager = new FilterManager();
+        const xml = `
+            <?xml version="1.0" encoding="utf-8" standalone="yes"?>
+            <TextAnalysisTool.NET version="2016-06-16" showOnlyFilteredLines="True">
+              <filters>
+                <filter enabled="y" excluding="n" description="Err filter" foreColor="ffffff" backColor="ff0000" type="matches_text" case_sensitive="n" regex="n" text="ERROR" />
+                <filter enabled="n" excluding="y" description="" foreColor="ffffff" backColor="44475a" type="matches_text" case_sensitive="y" regex="y" text="IGNORE" />
+              </filters>
+            </TextAnalysisTool.NET>
+        `;
+        
+        const filters = filterManager.parseFiltersXml(xml);
+        assert.strictEqual(filters.length, 2, 'Should parse 2 filters');
+        
+        assert.strictEqual(filters[0].text, 'ERROR');
+        assert.strictEqual(filters[0].isEnabled, true);
+        assert.strictEqual(filters[0].isExclude, false);
+        assert.strictEqual(filters[0].backgroundColor.toLowerCase(), '#ff0000');
+        assert.strictEqual(filters[0].letter, 'a');
+
+        assert.strictEqual(filters[1].text, 'IGNORE');
+        assert.strictEqual(filters[1].isEnabled, false);
+        assert.strictEqual(filters[1].isExclude, true);
+        assert.strictEqual(filters[1].isRegex, true);
+        assert.strictEqual(filters[1].isMatchCase, true);
+        assert.strictEqual(filters[1].letter, 'b');
+    });
+
     test('Webviews should retain context when hidden', async () => {
         const extensionFilePath = path.join(__dirname, '../../../src/extension.ts');
         const extensionCode = fs.readFileSync(extensionFilePath, 'utf8');
